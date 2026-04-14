@@ -1,16 +1,35 @@
 /**
- * MVP deteksi (sisi server pelanggan / Express):
- * 1) SQLi  2) XSS  3) Brute force (rate limit jalur login)
- * 4) Path traversal  5) Command injection  6) User-Agent mencurigakan
- * 7) DDoS / flood (rate limit global per IP)
- *
- * Pasang sebelum route. Perlu bridge + API key untuk lapor ingest.
+ * Hardened detection middleware (customer-side / Express):
+ * SQLi, XSS, brute force, path traversal, command injection,
+ * DDoS/flood, bot activity, scanner, suspicious request,
+ * auth bypass probes, and file inclusion.
  */
 import { randomUUID } from 'node:crypto';
 
 const DDOS_VECTOR_APP = 'application';
+const SAMPLE_LIMIT = 8192;
+const PATH_SAMPLE_LIMIT = 4096;
+const GEO_CACHE_TTL_MS = 10 * 60_000;
+const BUCKET_IDLE_TTL_MS = 15 * 60_000;
+const HOUSEKEEPING_EVERY = 512;
+const STATIC_ASSET_RE = /\.(?:avif|bmp|css|gif|ico|jpeg|jpg|js|json|map|mp3|mp4|png|svg|txt|webm|webp|woff2?)$/i;
+const LOGIN_PATHS = ['/login', '/signin', '/auth', '/api/login', '/api/auth', '/admin/login'];
+const SENSITIVE_SCAN_PATHS = [
+  '/wp-admin',
+  '/wp-login.php',
+  '/phpmyadmin',
+  '/.env',
+  '/.git',
+  '/server-status',
+  '/debug',
+  '/actuator',
+  '/vendor/phpunit',
+  '/boaform',
+];
+const GEO_CACHE = new Map();
+const rateBuckets = new Map();
+let housekeepingCounter = 0;
 
-// ─── SQLi (keyword + pola umum) ─────────────────────────────────────────────
 const SQLI_RULES = [
   { re: /'\s*or\s+['"]?\d*['"]?\s*=\s*['"]?\d*/i, id: 'or_tautology_quote' },
   { re: /'\s*or\s+['"]?1['"]?\s*=\s*['"]?1/i, id: 'or_1_1' },
@@ -30,7 +49,6 @@ const SQLI_RULES = [
   { re: /\bpg_sleep\s*\(/i, id: 'pg_sleep' },
 ];
 
-// ─── XSS ───────────────────────────────────────────────────────────────────
 const XSS_RULES = [
   { re: /<\s*script\b/i, id: 'script_tag' },
   { re: /<\s*\/\s*script\b/i, id: 'close_script' },
@@ -53,14 +71,12 @@ const XSS_RULES = [
   { re: /\\x3c\s*script/i, id: 'hex_script' },
 ];
 
-// ─── Path traversal ────────────────────────────────────────────────────────
 const PATH_TRAVERSAL_RULES = [
   { re: /\.\.[\/\\]/, id: 'dot_dot_slash' },
   { re: /%2e%2e(?:%2f|%5c)|%252e%252e/i, id: 'encoded_traversal' },
   { re: /etc\/passwd|etc%2fpasswd|win\.ini/i, id: 'sensitive_file' },
 ];
 
-// ─── Command injection ─────────────────────────────────────────────────────
 const CMD_INJECTION_RULES = [
   { re: /[;&]\s*(ls|cat|rm|wget|curl|nc\b|netcat|bash|sh\b|cmd\.exe|powershell|ping|whoami|id)\b/i, id: 'shell_metachar' },
   { re: /&&\s*\w+/, id: 'and_and_cmd' },
@@ -69,7 +85,33 @@ const CMD_INJECTION_RULES = [
   { re: /\$\([^)\n]{1,80}\)/, id: 'dollar_subshell' },
 ];
 
-// ─── User-Agent (bot / scanner) ────────────────────────────────────────────
+const FILE_INCLUSION_RULES = [
+  { re: /\b(?:file|page|include|template|view|module|lang|path|doc|folder)=.{0,160}(?:\.\.[\/\\]|%2e%2e|etc\/passwd|win\.ini)/i, id: 'local_file' },
+  { re: /\b(?:file|page|include|template|view|module|lang|path)=.{0,120}(?:https?:\/\/|ftp:\/\/|php:\/\/|file:\/\/|zip:\/\/|phar:\/\/)/i, id: 'remote_or_wrapper' },
+];
+
+const AUTH_BYPASS_RULES = [
+  { re: /\b(?:x-original-url|x-rewrite-url)\b/i, id: 'rewrite_override' },
+  { re: /\b(?:x-http-method-override)\s*[:=]\s*(?:put|patch|delete)\b/i, id: 'method_override' },
+  { re: /\b(?:role|isadmin|is_admin|admin|access_level|scope|impersonate|sudo)\s*[:=]\s*(?:1|true|admin|root|superuser)\b/i, id: 'privilege_param' },
+  { re: /\b(?:\/admin(?:\/|$)|\/internal(?:\/|$)|\/private(?:\/|$)|\/actuator(?:\/|$)|\/debug(?:\/|$))\b/i, id: 'privileged_path' },
+];
+
+const SUSPICIOUS_REQUEST_RULES = [
+  { re: /%00|\\0/, id: 'null_byte' },
+  { re: /%25(?:32|33|34|35|36|37|38|39)/i, id: 'double_encoded' },
+  { re: /\b(?:\*\/\*|\.\.\/\.\.\/|%2f%2f|\/\/\/|__proto__|constructor\.)/i, id: 'malformed_probe' },
+  { re: /\b(?:trace|track)\b/i, id: 'unsafe_method_probe' },
+];
+
+const SCANNER_PATH_RULES = [
+  { re: /^\/(?:wp-admin|wp-login\.php)(?:\/|$)/i, id: 'wp_probe' },
+  { re: /^\/(?:phpmyadmin|pma)(?:\/|$)/i, id: 'phpmyadmin_probe' },
+  { re: /^\/(?:\.env|\.git|\.svn|\.hg)(?:\/|$)/i, id: 'secrets_probe' },
+  { re: /^\/(?:server-status|actuator|debug|console)(?:\/|$)/i, id: 'admin_probe' },
+  { re: /^\/(?:vendor\/phpunit|boaform|cgi-bin|jenkins)(?:\/|$)/i, id: 'framework_probe' },
+];
+
 const DEFAULT_UA_BLOCK = [
   { re: /sqlmap/i, id: 'sqlmap' },
   { re: /nikto/i, id: 'nikto' },
@@ -77,16 +119,92 @@ const DEFAULT_UA_BLOCK = [
   { re: /python-requests/i, id: 'python_requests' },
   { re: /^Go-http-client/i, id: 'go_http' },
   { re: /masscan|nmap|zgrab|wpscan|acunetix/i, id: 'scanner' },
+  { re: /headless|phantomjs|playwright|puppeteer/i, id: 'automation' },
 ];
 
-const rateBuckets = new Map();
+function defaultSkip(req) {
+  const method = (req.method || 'GET').toUpperCase();
+  const { path } = pathnameAndSearch(req);
+  return (
+    (method === 'GET' || method === 'HEAD') &&
+    (path === '/health' || path === '/favicon.ico' || STATIC_ASSET_RE.test(path))
+  );
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function normalizeIp(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let ip = raw.trim();
+  if (!ip) return '';
+  if (ip.startsWith('[') && ip.includes(']')) {
+    ip = ip.slice(1, ip.indexOf(']'));
+  }
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  const ipv4WithPort = ip.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/);
+  if (ipv4WithPort) ip = ipv4WithPort[1];
+  return ip;
+}
+
+function isPrivateOrReservedIp(ip) {
+  if (!ip) return true;
+  const low = ip.toLowerCase();
+  if (low === '::1' || low === 'localhost') return true;
+  if (low.startsWith('fe80:') || low.startsWith('fc') || low.startsWith('fd')) return true;
+  if (low.includes(':')) return false;
+  const parts = low.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts;
+  if (a === 10 || a === 127) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a === 192 && b === 0) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true;
+  if (a >= 224) return true;
+  return false;
+}
+
+function extractSourceGeoOverride(req) {
+  const headers = req.headers || {};
+  const latRaw =
+    headers['x-prime-source-lat'] ??
+    headers['x-attacker-lat'] ??
+    headers['x-source-lat'];
+  const lonRaw =
+    headers['x-prime-source-lon'] ??
+    headers['x-attacker-lon'] ??
+    headers['x-source-lon'];
+  const labelRaw =
+    headers['x-prime-source-label'] ??
+    headers['x-attacker-label'] ??
+    headers['x-source-label'];
+
+  const lat = typeof latRaw === 'string' ? Number(latRaw) : NaN;
+  const lon = typeof lonRaw === 'string' ? Number(lonRaw) : NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return {
+    lat: clamp(lat, -85, 85),
+    lon: clamp(lon, -180, 180),
+    label: typeof labelRaw === 'string' && labelRaw.trim() ? labelRaw.trim().slice(0, 120) : 'header-geo',
+  };
+}
 
 function clientIp(req) {
-  const xff = req.headers?.['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.trim()) {
-    return xff.split(',')[0].trim();
+  const directHeaders = [
+    req.headers?.['cf-connecting-ip'],
+    req.headers?.['x-real-ip'],
+    req.headers?.['x-forwarded-for'],
+  ];
+  for (const raw of directHeaders) {
+    if (typeof raw === 'string' && raw.trim()) {
+      return normalizeIp(raw.split(',')[0].trim());
+    }
   }
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || '';
+  return normalizeIp(req.socket?.remoteAddress || req.connection?.remoteAddress || '');
 }
 
 function pathnameAndSearch(req) {
@@ -97,77 +215,100 @@ function pathnameAndSearch(req) {
 
 function pathMatches(actual, pattern) {
   if (pattern === actual) return true;
-  if (pattern.endsWith('*')) {
-    const pre = pattern.slice(0, -1);
-    return actual.startsWith(pre);
-  }
+  if (pattern.endsWith('*')) return actual.startsWith(pattern.slice(0, -1));
   return false;
 }
 
 function decodeSample(text) {
   try {
-    return decodeURIComponent(text.replace(/\+/g, ' '));
+    return decodeURIComponent(String(text).replace(/\+/g, ' '));
   } catch {
-    return text;
+    return String(text);
   }
 }
 
-/**
- * @param {string} text
- * @returns {{ id: string } | null}
- */
+function sliceText(value, limit) {
+  return typeof value === 'string' ? value.slice(0, limit) : '';
+}
+
+function runRules(text, rules, transform = (v) => v, limit = SAMPLE_LIMIT) {
+  if (!text || typeof text !== 'string') return null;
+  const sample = transform(text).slice(0, limit);
+  for (const rule of rules) {
+    if (rule.re.test(sample)) return { id: rule.id };
+  }
+  return null;
+}
+
+function collectScanContext(req) {
+  const { path, search } = pathnameAndSearch(req);
+  const method = (req.method || 'GET').toUpperCase();
+  const ua = typeof req.headers?.['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 512) : '';
+  const ref = typeof req.headers?.referer === 'string' ? req.headers.referer.slice(0, 2048) : '';
+  const body = req.body;
+  let bodyText = '';
+  if (body != null) {
+    if (typeof body === 'string') bodyText = body.slice(0, SAMPLE_LIMIT);
+    else if (typeof body === 'object') {
+      try {
+        bodyText = JSON.stringify(body).slice(0, SAMPLE_LIMIT);
+      } catch {
+        bodyText = '';
+      }
+    }
+  }
+
+  const pathQuery = `${path}${search}`.slice(0, PATH_SAMPLE_LIMIT);
+  const decodedPathQuery = decodeSample(pathQuery);
+  const requestBlob = [pathQuery, decodedPathQuery, ref, bodyText].filter(Boolean).join('\n').slice(0, SAMPLE_LIMIT);
+  const headerBlob = [
+    ua,
+    typeof req.headers?.['x-original-url'] === 'string' ? req.headers['x-original-url'] : '',
+    typeof req.headers?.['x-rewrite-url'] === 'string' ? req.headers['x-rewrite-url'] : '',
+    typeof req.headers?.['x-http-method-override'] === 'string' ? req.headers['x-http-method-override'] : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, SAMPLE_LIMIT);
+
+  return { path, search, method, ua, ref, bodyText, pathQuery, decodedPathQuery, requestBlob, headerBlob };
+}
+
 export function detectSqliInText(text) {
-  if (!text || typeof text !== 'string') return null;
-  const sample = decodeSample(text).slice(0, 8192);
-  for (const rule of SQLI_RULES) {
-    if (rule.re.test(sample)) return { id: rule.id };
-  }
-  return null;
+  return runRules(text, SQLI_RULES, decodeSample);
 }
 
-/**
- * @param {string} text
- * @returns {{ id: string } | null}
- */
 export function detectXssInText(text) {
-  if (!text || typeof text !== 'string') return null;
-  const sample = decodeSample(text).slice(0, 8192);
-  for (const rule of XSS_RULES) {
-    if (rule.re.test(sample)) return { id: rule.id };
-  }
-  return null;
+  return runRules(text, XSS_RULES, decodeSample);
 }
 
-/**
- * @param {string} text — path + query
- */
 export function detectPathTraversalInText(text) {
   if (!text || typeof text !== 'string') return null;
-  const raw = text.slice(0, 4096);
+  const raw = text.slice(0, PATH_SAMPLE_LIMIT);
   const decoded = decodeSample(raw);
-  const sample = `${raw}\n${decoded}`;
-  for (const rule of PATH_TRAVERSAL_RULES) {
-    if (rule.re.test(sample)) return { id: rule.id };
-  }
-  return null;
+  return runRules(`${raw}\n${decoded}`, PATH_TRAVERSAL_RULES, (v) => v, PATH_SAMPLE_LIMIT * 2);
 }
 
-/**
- * @param {string} text
- */
 export function detectCmdInjectionInText(text) {
-  if (!text || typeof text !== 'string') return null;
-  const sample = decodeSample(text).slice(0, 8192);
-  for (const rule of CMD_INJECTION_RULES) {
-    if (rule.re.test(sample)) return { id: rule.id };
-  }
-  return null;
+  return runRules(text, CMD_INJECTION_RULES, decodeSample);
 }
 
-/**
- * @param {string|undefined} ua
- * @param {{ blockCurl?: boolean; extraPatterns?: Array<{ re: RegExp; id: string }> }} [opts]
- */
+export function detectFileInclusionInText(text) {
+  return runRules(text, FILE_INCLUSION_RULES, decodeSample);
+}
+
+export function detectAuthBypassInText(text) {
+  return runRules(text, AUTH_BYPASS_RULES, decodeSample);
+}
+
+export function detectSuspiciousRequestInText(text) {
+  return runRules(text, SUSPICIOUS_REQUEST_RULES, decodeSample);
+}
+
+export function detectScannerPath(text) {
+  return runRules(text, SCANNER_PATH_RULES, (v) => v, PATH_SAMPLE_LIMIT);
+}
+
 export function detectSuspiciousUserAgent(ua, opts = {}) {
   if (!ua || typeof ua !== 'string') return null;
   const blockCurl = opts.blockCurl !== false;
@@ -177,38 +318,42 @@ export function detectSuspiciousUserAgent(ua, opts = {}) {
     rules.length = 0;
     rules.push(...filtered);
   }
-  if (Array.isArray(opts.extraPatterns)) {
-    rules.push(...opts.extraPatterns);
-  }
+  if (Array.isArray(opts.extraPatterns)) rules.push(...opts.extraPatterns);
   for (const rule of rules) {
     if (rule.re.test(ua)) return { id: rule.id };
   }
   return null;
 }
 
-function collectScanStrings(req) {
-  const { path, search } = pathnameAndSearch(req);
-  const parts = [path, search];
-  const ref = req.headers?.referer;
-  if (typeof ref === 'string' && ref.length) parts.push(ref.slice(0, 2048));
-  const body = req.body;
-  if (body != null) {
-    if (typeof body === 'string') parts.push(body.slice(0, 8192));
-    else if (typeof body === 'object') {
-      try {
-        parts.push(JSON.stringify(body).slice(0, 8192));
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  return parts.join('\n');
+function pruneHits(bucket, now, windowMs) {
+  while (bucket.ts.length && now - bucket.ts[0] > windowMs) bucket.ts.shift();
 }
 
-function pruneHits(timestamps, now, windowMs) {
-  while (timestamps.length && now - timestamps[0] > windowMs) {
-    timestamps.shift();
+function cleanupState(now = Date.now()) {
+  for (const [key, bucket] of rateBuckets) {
+    if (!bucket.ts.length || now - bucket.lastSeen > BUCKET_IDLE_TTL_MS) rateBuckets.delete(key);
   }
+  for (const [key, cached] of GEO_CACHE) {
+    if (cached.expiresAt <= now) GEO_CACHE.delete(key);
+  }
+}
+
+function recordRateWindow(bucketKey, cfg) {
+  const now = Date.now();
+  let bucket = rateBuckets.get(bucketKey);
+  if (!bucket) {
+    bucket = { ts: [], lastSeen: now };
+    rateBuckets.set(bucketKey, bucket);
+  }
+  bucket.lastSeen = now;
+  pruneHits(bucket, now, cfg.windowMs);
+  const allowed = bucket.ts.length < cfg.maxPerWindow;
+  if (allowed) bucket.ts.push(now);
+  housekeepingCounter += 1;
+  if (housekeepingCounter % HOUSEKEEPING_EVERY === 0) cleanupState(now);
+  const retryAfterSec =
+    bucket.ts.length > 0 ? Math.max(1, Math.ceil((bucket.ts[0] + cfg.windowMs - now) / 1000)) : 1;
+  return { allowed, retryAfterSec, hitsInWindow: bucket.ts.length };
 }
 
 /**
@@ -216,18 +361,7 @@ function pruneHits(timestamps, now, windowMs) {
  * @returns {boolean} true = allowed, false = exceeded
  */
 export function recordRateLimit(bucketKey, cfg) {
-  const now = Date.now();
-  let b = rateBuckets.get(bucketKey);
-  if (!b) {
-    b = { ts: [] };
-    rateBuckets.set(bucketKey, b);
-  }
-  pruneHits(b.ts, now, cfg.windowMs);
-  if (b.ts.length >= cfg.maxPerWindow) {
-    return false;
-  }
-  b.ts.push(now);
-  return true;
+  return recordRateWindow(bucketKey, cfg).allowed;
 }
 
 /** @deprecated gunakan recordRateLimit(`ddos:${ip}`, cfg) */
@@ -236,17 +370,65 @@ export function recordDdosWindow(ip, cfg) {
 }
 
 function matchesBrutePath(path, method, cfg) {
-  const paths = cfg.paths ?? ['/login', '/signin', '/auth', '/api/login', '/api/auth'];
+  const paths = cfg.paths ?? LOGIN_PATHS;
   const methods = cfg.methods ?? ['POST', 'GET', 'PUT', 'PATCH'];
   if (!methods.includes('*') && !methods.includes(method)) return false;
   return paths.some((p) => pathMatches(path, p));
 }
 
-async function geoLookup(ip) {
-  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('::ffff:127.')) {
-    return { lat: 0, lon: 0, label: 'loopback' };
+function normalizeMode(cfg, defaultMode = 'block') {
+  return cfg?.mode === 'observe' ? 'observe' : defaultMode;
+}
+
+function inferCategory(detection) {
+  if (detection.startsWith('ddos')) return 'ddos';
+  if (detection.startsWith('bot_activity') || detection.startsWith('scanner')) return 'botnet';
+  return 'intrusion';
+}
+
+function buildProtectedSiteLabel(siteRegion, siteId) {
+  const parts = [];
+  if (typeof siteId === 'string' && siteId.trim()) parts.push(siteId.trim());
+  if (typeof siteRegion?.label === 'string' && siteRegion.label.trim()) parts.push(siteRegion.label.trim());
+  return parts.length ? parts.join(' · ') : 'Protected site';
+}
+
+function composeTargetLabel(siteLabel, summary) {
+  if (summary && summary.trim()) return `${siteLabel} · ${summary.trim()}`;
+  return siteLabel;
+}
+
+function detectionTitle(detection) {
+  if (detection.startsWith('sqli')) return 'SQLi';
+  if (detection.startsWith('xss')) return 'XSS';
+  if (detection.startsWith('path_traversal')) return 'PathTrav';
+  if (detection.startsWith('cmd_injection')) return 'Cmd';
+  if (detection.startsWith('bad_ua')) return 'UA';
+  if (detection.startsWith('brute_force')) return 'BruteForce';
+  if (detection.startsWith('ddos')) return 'Flood';
+  if (detection.startsWith('bot_activity')) return 'Bot';
+  if (detection.startsWith('scanner')) return 'Scanner';
+  if (detection.startsWith('suspicious_request')) return 'Suspicious';
+  if (detection.startsWith('auth_bypass')) return 'AuthBypass';
+  if (detection.startsWith('file_inclusion')) return 'FileInclude';
+  return 'Detection';
+}
+
+async function geoLookup(ip, siteRegion) {
+  if (!ip) {
+    return { lat: siteRegion.lat, lon: siteRegion.lon, label: 'unknown-source' };
   }
-  const clean = ip.replace(/^::ffff:/, '');
+  if (isPrivateOrReservedIp(ip)) {
+    return {
+      lat: siteRegion.lat,
+      lon: siteRegion.lon,
+      label: ip === '127.0.0.1' || ip === '::1' ? 'loopback' : `private-network (${ip})`,
+    };
+  }
+  const clean = normalizeIp(ip);
+  const cached = GEO_CACHE.get(clean);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  let value = { lat: 0, lon: 0, label: clean };
   try {
     const res = await fetch(
       `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,lat,lon,city,country`,
@@ -255,12 +437,13 @@ async function geoLookup(ip) {
     const j = await res.json();
     if (j.status === 'success' && typeof j.lat === 'number' && typeof j.lon === 'number') {
       const label = [j.city, j.country].filter(Boolean).join(', ') || clean;
-      return { lat: j.lat, lon: j.lon, label };
+      value = { lat: j.lat, lon: j.lon, label };
     }
   } catch {
     /* ignore */
   }
-  return { lat: 0, lon: 0, label: clean };
+  GEO_CACHE.set(clean, { value, expiresAt: Date.now() + GEO_CACHE_TTL_MS });
+  return value;
 }
 
 async function sendIngest(ingestUrl, apiKey, body) {
@@ -275,10 +458,9 @@ async function sendIngest(ingestUrl, apiKey, body) {
 
 /**
  * @param {object} opts
- * @param {{ enabled?: boolean; maxPerWindow?: number; windowMs?: number; paths?: string[]; methods?: string[] }} [opts.bruteForce]
- * @param {{ enabled?: boolean; blockCurl?: boolean }} [opts.suspiciousUa]
- * @param {{ enabled?: boolean }} [opts.pathTraversal]
- * @param {{ enabled?: boolean }} [opts.cmdInjection]
+ * @param {{ enabled?: boolean; maxPerWindow?: number; windowMs?: number; mode?: 'block'|'observe' }} [opts.ddos]
+ * @param {{ enabled?: boolean; maxPerWindow?: number; windowMs?: number; paths?: string[]; methods?: string[]; mode?: 'block'|'observe' }} [opts.bruteForce]
+ * @param {{ enabled?: boolean; blockCurl?: boolean; extraPatterns?: Array<{ re: RegExp; id: string }>; mode?: 'block'|'observe' }} [opts.suspiciousUa]
  */
 export function createSecurityDetectionMiddleware(opts) {
   const ingestUrl = opts.bridgeIngestUrl;
@@ -294,6 +476,7 @@ export function createSecurityDetectionMiddleware(opts) {
     enabled: opts.ddos?.enabled !== false,
     maxPerWindow: opts.ddos?.maxPerWindow ?? 120,
     windowMs: opts.ddos?.windowMs ?? 10_000,
+    mode: normalizeMode(opts.ddos),
   };
   const bruteCfg = {
     enabled: opts.bruteForce?.enabled !== false,
@@ -301,43 +484,115 @@ export function createSecurityDetectionMiddleware(opts) {
     windowMs: opts.bruteForce?.windowMs ?? 60_000,
     paths: opts.bruteForce?.paths,
     methods: opts.bruteForce?.methods,
+    mode: normalizeMode(opts.bruteForce),
   };
-  const sqliCfg = { enabled: opts.sqli?.enabled !== false };
-  const xssCfg = { enabled: opts.xss?.enabled !== false };
-  const pathTravCfg = { enabled: opts.pathTraversal?.enabled !== false };
-  const cmdCfg = { enabled: opts.cmdInjection?.enabled !== false };
+  const scannerCfg = {
+    enabled: opts.scanner?.enabled !== false,
+    maxPerWindow: opts.scanner?.maxPerWindow ?? 12,
+    windowMs: opts.scanner?.windowMs ?? 60_000,
+    mode: normalizeMode(opts.scanner),
+  };
+  const botCfg = {
+    enabled: opts.botActivity?.enabled !== false,
+    maxPerWindow: opts.botActivity?.maxPerWindow ?? 40,
+    windowMs: opts.botActivity?.windowMs ?? 30_000,
+    mode: normalizeMode(opts.botActivity),
+  };
+  const suspiciousReqCfg = {
+    enabled: opts.suspiciousRequest?.enabled !== false,
+    maxPerWindow: opts.suspiciousRequest?.maxPerWindow ?? 8,
+    windowMs: opts.suspiciousRequest?.windowMs ?? 60_000,
+    mode: normalizeMode(opts.suspiciousRequest),
+  };
+  const sqliCfg = { enabled: opts.sqli?.enabled !== false, mode: normalizeMode(opts.sqli) };
+  const xssCfg = { enabled: opts.xss?.enabled !== false, mode: normalizeMode(opts.xss) };
+  const pathTravCfg = { enabled: opts.pathTraversal?.enabled !== false, mode: normalizeMode(opts.pathTraversal) };
+  const cmdCfg = { enabled: opts.cmdInjection?.enabled !== false, mode: normalizeMode(opts.cmdInjection) };
+  const fileIncCfg = { enabled: opts.fileInclusion?.enabled !== false, mode: normalizeMode(opts.fileInclusion) };
+  const authBypassCfg = { enabled: opts.authBypass?.enabled !== false, mode: normalizeMode(opts.authBypass) };
   const uaCfg = {
     enabled: opts.suspiciousUa?.enabled !== false,
     blockCurl: opts.suspiciousUa?.blockCurl,
     extraPatterns: opts.suspiciousUa?.extraPatterns,
+    mode: normalizeMode(opts.suspiciousUa),
   };
-  const skip = typeof opts.skip === 'function' ? opts.skip : () => false;
+  const skip = typeof opts.skip === 'function' ? opts.skip : defaultSkip;
+  const siteLabel = buildProtectedSiteLabel(siteRegion, opts.siteId);
 
   function userAgentFromReq(req) {
     const u = req.headers?.['user-agent'];
     return typeof u === 'string' ? u.slice(0, 512) : undefined;
   }
 
-  const ingestIntrusion = (payload, req, ip) =>
-    sendIngest(ingestUrl, apiKey, {
-      id: randomUUID(),
-      createdAt: Date.now(),
-      category: 'intrusion',
-      severity: payload.severity || 'high',
-      from: payload.from,
-      to: { lat: siteRegion.lat, lon: siteRegion.lon },
-      sourceLabel: payload.sourceLabel,
-      targetLabel: payload.targetLabel,
-      siteId: opts.siteId,
-      tenantId: opts.tenantId,
-      path: payload.path,
-      method: payload.method,
-      blocked: true,
-      action: 'blocked',
-      attackerIp: ip,
-      userAgent: userAgentFromReq(req),
-      ...(payload.detection ? { detection: payload.detection } : {}),
+  function runIngest(fn) {
+    if (!reportToBridge) return;
+    queueMicrotask(fn);
+  }
+
+  function respondBlocked(res, statusCode, reason, ruleId, detection, retryAfterSec) {
+    res.statusCode = statusCode;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('X-PrimeDefender-Detection', detection);
+    if (typeof retryAfterSec === 'number' && retryAfterSec > 0) res.setHeader('Retry-After', String(retryAfterSec));
+    res.end(
+      JSON.stringify({
+        error: statusCode === 429 ? 'rate_limited' : 'forbidden',
+        reason,
+        ...(ruleId ? { rule: ruleId } : {}),
+      })
+    );
+  }
+
+  function emitIncident(req, ip, event) {
+    runIngest(async () => {
+      try {
+        const sourceOverride = extractSourceGeoOverride(req);
+        const from = sourceOverride || (geo ? await geoLookup(ip, siteRegion) : { lat: 0, lon: 0, label: ip });
+        const payload = {
+          id: randomUUID(),
+          createdAt: Date.now(),
+          category: event.category || inferCategory(event.detection),
+          severity: event.severity || 'high',
+          from: { lat: from.lat, lon: from.lon },
+          to: { lat: siteRegion.lat, lon: siteRegion.lon },
+          sourceLabel: event.sourceLabel || from.label || ip,
+          targetLabel: event.targetLabel || siteLabel,
+          siteId: opts.siteId,
+          tenantId: opts.tenantId,
+          path: event.path,
+          method: event.method,
+          blocked: event.blocked !== false,
+          action: event.blocked === false ? 'observed' : 'blocked',
+          attackerIp: ip,
+          userAgent: userAgentFromReq(req),
+          detection: event.detection,
+        };
+        if (event.ddos) payload.ddos = event.ddos;
+        await sendIngest(ingestUrl, apiKey, payload);
+      } catch (e) {
+        console.error('[detection] ingest failed', e?.message || e);
+      }
     });
+  }
+
+  function handleDetection(req, res, context, cfg, detail) {
+    if (!cfg?.enabled) return false;
+    const blocked = cfg.mode !== 'observe';
+    if (blocked) {
+      respondBlocked(res, detail.statusCode ?? 403, detail.reason, detail.rule, detail.detection, detail.retryAfterSec);
+    }
+    emitIncident(req, context.ip, {
+      blocked,
+      category: detail.category,
+      severity: detail.severity,
+      detection: detail.detection,
+      targetLabel: detail.targetLabel,
+      path: context.path,
+      method: context.method,
+      ddos: detail.ddos,
+    });
+    return blocked;
+  }
 
   return function securityDetectionMiddleware(req, res, next) {
     if (skip(req)) {
@@ -345,276 +600,252 @@ export function createSecurityDetectionMiddleware(opts) {
       return;
     }
 
-    const ip = clientIp(req);
-    const { path, search } = pathnameAndSearch(req);
-    const method = (req.method || 'GET').toUpperCase();
-    const blob = collectScanStrings(req);
-    const pathQuery = `${path}${search}`;
-
-    const runIngest = (fn) => {
-      if (!reportToBridge) return;
-      queueMicrotask(fn);
-    };
-
-    // 6) Suspicious User-Agent
-    if (uaCfg.enabled) {
-      const ua = req.headers?.['user-agent'];
-      const uaHit = detectSuspiciousUserAgent(typeof ua === 'string' ? ua : '', uaCfg);
-      if (uaHit) {
-        res.statusCode = 403;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('X-PrimeDefender-Detection', 'bad_user_agent');
-        res.end(
-          JSON.stringify({
-            error: 'forbidden',
-            reason: 'suspicious_user_agent',
-            rule: uaHit.id,
-          })
-        );
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'medium',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · UA:${uaHit.id}`,
-                path,
-                method,
-                detection: `bad_ua:${uaHit.id}`,
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] ua ingest failed', e?.message || e);
-          }
-        });
-        return;
-      }
+    const context = collectScanContext(req);
+    context.ip = clientIp(req);
+    if (!context.ip) {
+      next();
+      return;
     }
 
-    // 4) Path traversal
-    if (pathTravCfg.enabled) {
-      const hit = detectPathTraversalInText(pathQuery);
-      if (hit) {
-        res.statusCode = 403;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('X-PrimeDefender-Detection', 'path_traversal');
-        res.end(
-          JSON.stringify({
-            error: 'forbidden',
-            reason: 'path_traversal',
-            rule: hit.id,
-          })
-        );
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'high',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · PathTrav:${hit.id}`,
-                path,
-                method,
-                detection: `path_traversal:${hit.id}`,
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] path trav ingest failed', e?.message || e);
-          }
-        });
-        return;
-      }
-    }
+    const uaHit = uaCfg.enabled ? detectSuspiciousUserAgent(context.ua, uaCfg) : null;
+    const scannerPathHit = scannerCfg.enabled ? detectScannerPath(context.path) : null;
+    const suspiciousHit = suspiciousReqCfg.enabled
+      ? detectSuspiciousRequestInText([context.pathQuery, context.headerBlob, sliceText(context.ua, 256)].join('\n'))
+      : null;
+    const pathTravHit = pathTravCfg.enabled ? detectPathTraversalInText(context.pathQuery) : null;
+    const fileIncludeHit = fileIncCfg.enabled
+      ? detectFileInclusionInText([context.pathQuery, context.bodyText].filter(Boolean).join('\n'))
+      : null;
+    const cmdHit = cmdCfg.enabled ? detectCmdInjectionInText(context.requestBlob) : null;
+    const sqliHit = sqliCfg.enabled ? detectSqliInText(context.requestBlob) : null;
+    const xssHit = xssCfg.enabled ? detectXssInText(context.requestBlob) : null;
+    const authBypassHit = authBypassCfg.enabled
+      ? detectAuthBypassInText([context.pathQuery, context.headerBlob, context.bodyText].filter(Boolean).join('\n'))
+      : null;
 
-    // 5) Command injection
-    if (cmdCfg.enabled) {
-      const hit = detectCmdInjectionInText(blob);
-      if (hit) {
-        res.statusCode = 403;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('X-PrimeDefender-Detection', 'cmd_injection');
-        res.end(
-          JSON.stringify({
-            error: 'forbidden',
-            reason: 'command_injection',
-            rule: hit.id,
-          })
-        );
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'critical',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · Cmd:${hit.id}`,
-                path,
-                method,
-                detection: `cmd_injection:${hit.id}`,
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] cmd ingest failed', e?.message || e);
-          }
-        });
-        return;
-      }
-    }
-
-    // 1) SQLi
-    if (sqliCfg.enabled) {
-      const hit = detectSqliInText(blob);
-      if (hit) {
-        res.statusCode = 403;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('X-PrimeDefender-Detection', 'sqli');
-        res.end(
-          JSON.stringify({
-            error: 'forbidden',
-            reason: 'sql_injection_probe',
-            rule: hit.id,
-          })
-        );
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'critical',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · SQLi:${hit.id}`,
-                path,
-                method,
-                detection: `sqli:${hit.id}`,
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] sqli ingest failed', e?.message || e);
-          }
-        });
-        return;
-      }
-    }
-
-    // 2) XSS
-    if (xssCfg.enabled) {
-      const hit = detectXssInText(blob);
-      if (hit) {
-        res.statusCode = 403;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('X-PrimeDefender-Detection', 'xss');
-        res.end(
-          JSON.stringify({
-            error: 'forbidden',
-            reason: 'xss_probe',
-            rule: hit.id,
-          })
-        );
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'high',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · XSS:${hit.id}`,
-                path,
-                method,
-                detection: `xss:${hit.id}`,
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] xss ingest failed', e?.message || e);
-          }
-        });
-        return;
-      }
-    }
-
-    // 3) Brute force (hanya jalur login) ATAU 7) flood global — tidak double-count
-    const onBrutePath = bruteCfg.enabled && matchesBrutePath(path, method, bruteCfg);
+    const onBrutePath = bruteCfg.enabled && matchesBrutePath(context.path, context.method, bruteCfg);
     if (onBrutePath) {
-      const allowed = recordRateLimit(`brute:${ip}:${path}`, bruteCfg);
-      if (!allowed) {
-        res.statusCode = 429;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Retry-After', '60');
-        res.setHeader('X-PrimeDefender-Detection', 'brute_force');
-        res.end(JSON.stringify({ error: 'rate_limited', reason: 'brute_force_login' }));
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await ingestIntrusion(
-              {
-                severity: 'high',
-                from: { lat: from.lat, lon: from.lon },
-                sourceLabel: from.label || ip,
-                targetLabel: `${method} ${path} · BruteForce`,
-                path,
-                method,
-                detection: 'brute_force',
-              },
-              req,
-              ip
-            );
-          } catch (e) {
-            console.error('[detection] brute ingest failed', e?.message || e);
-          }
-        });
-        return;
+      const rate = recordRateWindow(`brute:${context.ip}:${context.path}`, bruteCfg);
+      if (!rate.allowed) {
+        if (
+          handleDetection(req, res, context, bruteCfg, {
+            statusCode: 429,
+            retryAfterSec: rate.retryAfterSec,
+            reason: 'brute_force_login',
+            rule: 'login_window',
+            severity: 'high',
+            detection: 'brute_force',
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · BruteForce`),
+          })
+        )
+          return;
       }
-    } else if (ddosCfg.enabled) {
-      const allowed = recordRateLimit(`ddos:${ip}`, ddosCfg);
-      if (!allowed) {
-        res.statusCode = 429;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Retry-After', '30');
-        res.setHeader('X-PrimeDefender-Detection', 'ddos');
-        res.end(JSON.stringify({ error: 'rate_limited', reason: 'ddos_flood' }));
-        runIngest(async () => {
-          try {
-            const from = geo ? await geoLookup(ip) : { lat: 0, lon: 0, label: ip };
-            await sendIngest(ingestUrl, apiKey, {
-              id: randomUUID(),
-              createdAt: Date.now(),
-              category: 'ddos',
-              severity: 'high',
-              from: { lat: from.lat, lon: from.lon },
-              to: { lat: siteRegion.lat, lon: siteRegion.lon },
-              sourceLabel: from.label || ip,
-              targetLabel: `${method} ${path} · flood`,
-              siteId: opts.siteId,
-              tenantId: opts.tenantId,
-              path,
-              method,
-              blocked: true,
-              action: 'blocked',
-              attackerIp: ip,
-              userAgent: userAgentFromReq(req),
-              detection: 'ddos_flood',
-              ddos: { vector: DDOS_VECTOR_APP },
-            });
-          } catch (e) {
-            console.error('[detection] ddos ingest failed', e?.message || e);
-          }
-        });
+    }
+
+    if (!onBrutePath && ddosCfg.enabled) {
+      const rate = recordRateWindow(`ddos:${context.ip}`, ddosCfg);
+      if (!rate.allowed) {
+        if (
+          handleDetection(req, res, context, ddosCfg, {
+            statusCode: 429,
+            retryAfterSec: rate.retryAfterSec,
+            reason: 'ddos_flood',
+            rule: 'global_window',
+            severity: 'high',
+            category: 'ddos',
+            detection: 'ddos_flood',
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · flood`),
+            ddos: { vector: DDOS_VECTOR_APP },
+          })
+        )
+          return;
+      }
+    }
+
+    const scannerLike = Boolean(scannerPathHit || (uaHit && ['sqlmap', 'nikto', 'scanner'].includes(uaHit.id)));
+    if (scannerLike && scannerCfg.enabled) {
+      const rate = recordRateWindow(`scanner:${context.ip}`, scannerCfg);
+      if (!rate.allowed) {
+        if (
+          handleDetection(req, res, context, scannerCfg, {
+            statusCode: 429,
+            retryAfterSec: rate.retryAfterSec,
+            reason: 'scanner_activity',
+            rule: scannerPathHit?.id || uaHit?.id || 'probe_window',
+            severity: 'medium',
+            category: 'botnet',
+            detection: `scanner:${scannerPathHit?.id || uaHit?.id || 'burst'}`,
+            targetLabel: composeTargetLabel(
+              siteLabel,
+              `${context.method} ${context.path} · Scanner:${scannerPathHit?.id || uaHit?.id || 'burst'}`
+            ),
+          })
+        )
+          return;
+      }
+    }
+
+    const botUa = uaHit && ['curl', 'python_requests', 'go_http', 'automation'].includes(uaHit.id);
+    if (botUa && botCfg.enabled) {
+      const rate = recordRateWindow(`bot:${context.ip}`, botCfg);
+      if (!rate.allowed) {
+        if (
+          handleDetection(req, res, context, botCfg, {
+            statusCode: 429,
+            retryAfterSec: rate.retryAfterSec,
+            reason: 'bot_activity',
+            rule: uaHit.id,
+            severity: 'medium',
+            category: 'botnet',
+            detection: `bot_activity:${uaHit.id}`,
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Bot:${uaHit.id}`),
+          })
+        )
+          return;
+      }
+    }
+
+    if (uaHit && uaCfg.enabled) {
+      if (
+        handleDetection(req, res, context, uaCfg, {
+          reason: 'suspicious_user_agent',
+          rule: uaHit.id,
+          severity: 'medium',
+          category: ['scanner', 'automation'].includes(uaHit.id) ? 'botnet' : 'intrusion',
+          detection: ['scanner', 'automation'].includes(uaHit.id) ? `bot_activity:${uaHit.id}` : `bad_ua:${uaHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · UA:${uaHit.id}`),
+        })
+      )
         return;
+    }
+
+    if (scannerPathHit && scannerCfg.enabled) {
+      if (
+        handleDetection(req, res, context, scannerCfg, {
+          reason: 'scanner_path_probe',
+          rule: scannerPathHit.id,
+          severity: 'medium',
+          category: 'botnet',
+          detection: `scanner:${scannerPathHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Scanner:${scannerPathHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (pathTravHit && pathTravCfg.enabled) {
+      if (
+        handleDetection(req, res, context, pathTravCfg, {
+          reason: 'path_traversal',
+          rule: pathTravHit.id,
+          severity: 'high',
+          detection: `path_traversal:${pathTravHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · PathTrav:${pathTravHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (fileIncludeHit && fileIncCfg.enabled) {
+      if (
+        handleDetection(req, res, context, fileIncCfg, {
+          reason: 'file_inclusion',
+          rule: fileIncludeHit.id,
+          severity: 'high',
+          detection: `file_inclusion:${fileIncludeHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · FileInclude:${fileIncludeHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (cmdHit && cmdCfg.enabled) {
+      if (
+        handleDetection(req, res, context, cmdCfg, {
+          reason: 'command_injection',
+          rule: cmdHit.id,
+          severity: 'critical',
+          detection: `cmd_injection:${cmdHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Cmd:${cmdHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (sqliHit && sqliCfg.enabled) {
+      if (
+        handleDetection(req, res, context, sqliCfg, {
+          reason: 'sql_injection_probe',
+          rule: sqliHit.id,
+          severity: 'critical',
+          detection: `sqli:${sqliHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · SQLi:${sqliHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (xssHit && xssCfg.enabled) {
+      if (
+        handleDetection(req, res, context, xssCfg, {
+          reason: 'xss_probe',
+          rule: xssHit.id,
+          severity: 'high',
+          detection: `xss:${xssHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · XSS:${xssHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (authBypassHit && authBypassCfg.enabled) {
+      if (
+        handleDetection(req, res, context, authBypassCfg, {
+          reason: 'auth_bypass_probe',
+          rule: authBypassHit.id,
+          severity: 'high',
+          detection: `auth_bypass:${authBypassHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · AuthBypass:${authBypassHit.id}`),
+        })
+      )
+        return;
+    }
+
+    if (suspiciousHit && suspiciousReqCfg.enabled) {
+      const rate = recordRateWindow(`suspicious:${context.ip}`, suspiciousReqCfg);
+      if (!rate.allowed) {
+        if (
+          handleDetection(req, res, context, suspiciousReqCfg, {
+            statusCode: 429,
+            retryAfterSec: rate.retryAfterSec,
+            reason: 'suspicious_request_burst',
+            rule: suspiciousHit.id,
+            severity: 'medium',
+            detection: `suspicious_request:${suspiciousHit.id}`,
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
+          })
+        )
+          return;
+      } else if (suspiciousReqCfg.mode === 'block') {
+        if (
+          handleDetection(req, res, context, suspiciousReqCfg, {
+            reason: 'suspicious_request',
+            rule: suspiciousHit.id,
+            severity: 'medium',
+            detection: `suspicious_request:${suspiciousHit.id}`,
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
+          })
+        )
+          return;
+      } else {
+        emitIncident(req, context.ip, {
+          blocked: false,
+          severity: 'medium',
+          detection: `suspicious_request:${suspiciousHit.id}`,
+          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
+          path: context.path,
+          method: context.method,
+        });
       }
     }
 

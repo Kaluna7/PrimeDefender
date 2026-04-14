@@ -9,22 +9,34 @@ body,
   width: 100%;
 }
 
+/* Ambient grid — theme-aware via CSS variables */
 .cyber-grid {
   background-image:
-    linear-gradient(rgba(6, 182, 212, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 182, 212, 0.06) 1px, transparent 1px),
-    radial-gradient(
-      circle at 1px 1px,
-      rgba(34, 211, 238, 0.12) 1px,
-      transparent 0
-    );
+    linear-gradient(var(--grid-line-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-1) 1px, transparent 1px),
+    radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
   background-size:
     56px 56px,
     56px 56px,
     24px 24px;
 }
 
+:root {
+  --grid-line-1: rgba(14, 116, 144, 0.09);
+  --grid-dot: rgba(14, 116, 144, 0.14);
+}
+
+.dark {
+  --grid-line-1: rgba(6, 182, 212, 0.06);
+  --grid-dot: rgba(34, 211, 238, 0.12);
+}
+
 .text-neon {
+  color: #0e7490;
+  text-shadow: none;
+}
+
+.dark .text-neon {
   color: #a5f3fc;
   text-shadow:
     0 0 6px rgba(34, 211, 238, 0.9),
@@ -32,6 +44,11 @@ body,
 }
 
 .text-neon-amber {
+  color: #b45309;
+  text-shadow: none;
+}
+
+.dark .text-neon-amber {
   color: #fde68a;
   text-shadow:
     0 0 6px rgba(251, 191, 36, 0.85),
@@ -40,6 +57,10 @@ body,
 
 .thin-scrollbar {
   scrollbar-width: thin;
+  scrollbar-color: rgba(14, 116, 144, 0.35) transparent;
+}
+
+.dark .thin-scrollbar {
   scrollbar-color: rgba(34, 211, 238, 0.28) transparent;
 }
 
@@ -48,28 +69,10 @@ body,
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(34, 211, 238, 0.22);
+  background: rgba(14, 116, 144, 0.28);
   border-radius: 3px;
 }
 
-/**
- * Dot-world map: fade Google wordmark + legal line (still present for Maps Platform policy).
- * Selectors vary by Maps JS API version; several targets improve hit rate.
- */
-.map-dotworld .gm-style-cc,
-.map-dotworld .gm-style-cc + div,
-.map-dotworld .gm-style-cc * {
-  opacity: 0.14 !important;
-  color: #1a1d28 !important;
-}
-
-.map-dotworld .gm-style a[href*='google.com/maps'],
-.map-dotworld .gm-style a[href*='google'],
-.map-dotworld .gm-style a[title*='Google'] {
-  opacity: 0.12 !important;
-}
-
-.map-dotworld .gm-style img[alt='Google'] {
-  opacity: 0.12 !important;
-  filter: grayscale(1) brightness(0.35) !important;
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.22);
 }

@@ -1,6 +1,13 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      try {
+        var t = localStorage.getItem('prime-theme');
+        if (t === 'light') document.documentElement.classList.remove('dark');
+        else document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,7 +19,7 @@
     />
     <title>PrimeDefender</title>
   </head>
-  <body class="m-0 min-h-screen bg-black">
+  <body class="m-0 min-h-screen bg-slate-100 antialiased dark:bg-black">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

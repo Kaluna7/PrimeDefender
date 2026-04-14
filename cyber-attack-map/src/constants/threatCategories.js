@@ -15,7 +15,7 @@ export const DDOS_VECTOR = {
   APPLICATION: 'application',
 };
 
-/** Human labels + arc colors [srcR, srcG, srcB] → [tgtR, tgtG, tgtB] for deck.gl */
+/** Human labels + arc colors [srcR, srcG, srcB] → [tgtR, tgtG, tgtB] for map layers */
 export const CATEGORY_STYLE = {
   [THREAT_CATEGORY.DDOS]: {
     label: 'DDoS',

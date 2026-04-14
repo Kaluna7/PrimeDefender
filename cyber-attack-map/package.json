@@ -16,13 +16,15 @@
     "vite": "^8.0.4"
   },
   "dependencies": {
-    "@deck.gl/core": "^9.2.11",
-    "@deck.gl/google-maps": "^9.2.11",
-    "@deck.gl/layers": "^9.2.11",
-    "@googlemaps/js-api-loader": "^1.16.10",
+    "@google/generative-ai": "^0.24.1",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "echarts": "^5.6.0",
+    "gsap": "^3.14.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "three": "^0.183.2"
   }
 }

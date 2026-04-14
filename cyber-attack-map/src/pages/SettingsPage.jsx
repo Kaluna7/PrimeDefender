@@ -118,24 +118,24 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="thin-scrollbar h-full overflow-y-auto px-5 py-10">
+    <div className="thin-scrollbar h-full overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-5 py-10 dark:from-black dark:to-slate-950">
       <div className="mx-auto max-w-2xl">
-        <h1 className="font-cyber text-xl font-bold uppercase tracking-[0.25em] text-cyan-100">
+        <h1 className="font-cyber text-xl font-bold uppercase tracking-[0.25em] text-slate-900 dark:text-cyan-100">
           {t('settings.title')}
         </h1>
 
-        <div className="mt-10 rounded-lg border border-cyan-900/50 bg-slate-950/50 p-6">
-          <h2 className="text-sm font-semibold text-cyan-200">{t('settings.languageTitle')}</h2>
-          <p className="mt-1 text-xs text-cyan-700">{t('settings.languageHint')}</p>
+        <div className="mt-10 rounded-xl border border-slate-200/95 bg-white/95 p-6 shadow-sm dark:border-cyan-900/50 dark:bg-slate-950/50 dark:shadow-none">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-cyan-200">{t('settings.languageTitle')}</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-cyan-700">{t('settings.languageHint')}</p>
 
           <div className="mt-4 flex flex-col gap-2">
             {LOCALES.map((opt) => (
               <label
                 key={opt.id}
-                className={`flex cursor-pointer items-center gap-3 rounded border px-4 py-3 transition-colors ${
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
                   locale === opt.id
-                    ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-50'
-                    : 'border-cyan-900/40 bg-black/40 text-cyan-600 hover:border-cyan-800'
+                    ? 'border-cyan-500/50 bg-cyan-50 text-cyan-950 dark:border-cyan-500/60 dark:bg-cyan-950/40 dark:text-cyan-50'
+                    : 'border-slate-200/90 bg-slate-50/80 text-slate-600 hover:border-cyan-400/60 dark:border-cyan-900/40 dark:bg-black/40 dark:text-cyan-600 dark:hover:border-cyan-800'
                 }`}
               >
                 <input
@@ -152,41 +152,41 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-lg border border-cyan-900/50 bg-slate-950/50 p-6">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">
+        <div className="mt-8 rounded-xl border border-slate-200/95 bg-white/95 p-6 shadow-sm dark:border-cyan-900/50 dark:bg-slate-950/50 dark:shadow-none">
+          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slate-800 dark:text-cyan-200">
             {t('settings.bridgeTitle')}
           </h2>
-          <p className="mt-2 text-xs text-cyan-700">{t('settings.bridgeUrlLabel')}</p>
-          <p className="mt-2 break-all font-mono text-sm text-cyan-300/95">{SOCKET_URL}</p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-cyan-700">{t('settings.bridgeUrlLabel')}</p>
+          <p className="mt-2 break-all font-mono text-sm text-cyan-800 dark:text-cyan-300/95">{SOCKET_URL}</p>
         </div>
 
-        <div className="mt-8 rounded-lg border border-cyan-900/50 bg-slate-950/50 p-6">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">
+        <div className="mt-8 rounded-xl border border-slate-200/95 bg-white/95 p-6 shadow-sm dark:border-cyan-900/50 dark:bg-slate-950/50 dark:shadow-none">
+          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slate-800 dark:text-cyan-200">
             {t('settings.apiKeysTitle')}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-cyan-600/95">{t('settings.apiKeysIntro')}</p>
-          <p className="mt-3 text-xs text-amber-500/90">{t('settings.adminRequired')}</p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-cyan-600/95">{t('settings.apiKeysIntro')}</p>
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-500/90">{t('settings.adminRequired')}</p>
 
           <label className="mt-6 block">
-            <span className="text-xs font-semibold text-cyan-500">{t('settings.adminSecretLabel')}</span>
+            <span className="text-xs font-semibold text-cyan-800 dark:text-cyan-500">{t('settings.adminSecretLabel')}</span>
             <input
               type="password"
               autoComplete="off"
               value={adminSecret}
               onChange={(e) => setAdminSecret(e.target.value)}
-              className="mt-1 w-full rounded border border-cyan-900/60 bg-black/60 px-3 py-2 font-mono text-sm text-cyan-100 outline-none focus:border-cyan-600"
+              className="mt-1 w-full rounded-lg border border-slate-300/90 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-cyan-900/60 dark:bg-black/60 dark:text-cyan-100 dark:focus:border-cyan-600"
               placeholder=""
             />
-            <span className="mt-1 block text-[10px] text-cyan-700">{t('settings.adminSecretHint')}</span>
+            <span className="mt-1 block text-[10px] text-slate-500 dark:text-cyan-700">{t('settings.adminSecretHint')}</span>
           </label>
 
           <label className="mt-4 block">
-            <span className="text-xs font-semibold text-cyan-500">{t('settings.keyLabelOptional')}</span>
+            <span className="text-xs font-semibold text-cyan-800 dark:text-cyan-500">{t('settings.keyLabelOptional')}</span>
             <input
               type="text"
               value={keyLabel}
               onChange={(e) => setKeyLabel(e.target.value)}
-              className="mt-1 w-full rounded border border-cyan-900/60 bg-black/60 px-3 py-2 text-sm text-cyan-100 outline-none focus:border-cyan-600"
+              className="mt-1 w-full rounded-lg border border-slate-300/90 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 dark:border-cyan-900/60 dark:bg-black/60 dark:text-cyan-100 dark:focus:border-cyan-600"
             />
           </label>
 
@@ -195,7 +195,7 @@ export function SettingsPage() {
               type="button"
               disabled={loading || !adminSecret.trim()}
               onClick={createKey}
-              className="rounded border border-cyan-600/60 bg-cyan-950/50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-cyan-100 disabled:opacity-40"
+              className="rounded-lg border border-cyan-500/50 bg-cyan-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-cyan-500 disabled:opacity-40 dark:border-cyan-600/60 dark:bg-cyan-950/50 dark:text-cyan-100 dark:hover:bg-cyan-900/60"
             >
               {t('settings.createKey')}
             </button>
@@ -203,41 +203,41 @@ export function SettingsPage() {
               type="button"
               disabled={loading || !adminSecret.trim()}
               onClick={refreshList}
-              className="rounded border border-slate-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 disabled:opacity-40"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/40"
             >
               {t('settings.listKeys')}
             </button>
           </div>
 
           {message && (
-            <p className="mt-4 rounded border border-rose-800/50 bg-rose-950/30 px-3 py-2 text-xs text-rose-200">
+            <p className="mt-4 rounded-lg border border-rose-200/90 bg-rose-50/95 px-3 py-2 text-xs text-rose-800 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-200">
               {message}
             </p>
           )}
 
           {newKey && (
-            <div className="mt-6 rounded border border-emerald-700/50 bg-emerald-950/30 px-3 py-3">
-              <p className="text-xs font-semibold text-emerald-300">{t('settings.newKeyTitle')}</p>
-              <p className="mt-1 break-all font-mono text-sm text-emerald-100">{newKey}</p>
-              <p className="mt-2 text-[10px] text-emerald-600/90">{t('settings.newKeyWarn')}</p>
+            <div className="mt-6 rounded-lg border border-emerald-300/80 bg-emerald-50/95 px-3 py-3 dark:border-emerald-700/50 dark:bg-emerald-950/30">
+              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">{t('settings.newKeyTitle')}</p>
+              <p className="mt-1 break-all font-mono text-sm text-emerald-900 dark:text-emerald-100">{newKey}</p>
+              <p className="mt-2 text-[10px] text-emerald-700 dark:text-emerald-600/90">{t('settings.newKeyWarn')}</p>
             </div>
           )}
 
           <ul className="mt-6 space-y-2">
             {keys.length === 0 && !loading && (
-              <li className="text-xs text-cyan-700">{t('settings.noKeys')}</li>
+              <li className="text-xs text-slate-500 dark:text-cyan-700">{t('settings.noKeys')}</li>
             )}
             {keys.map((k) => (
               <li
                 key={k.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded border border-cyan-900/40 bg-black/40 px-3 py-2 text-xs"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs dark:border-cyan-900/40 dark:bg-black/40"
               >
-                <span className="font-mono text-cyan-400">{k.prefix}</span>
-                {k.label && <span className="text-cyan-600">{k.label}</span>}
+                <span className="font-mono text-cyan-800 dark:text-cyan-400">{k.prefix}</span>
+                {k.label && <span className="text-slate-600 dark:text-cyan-600">{k.label}</span>}
                 <button
                   type="button"
                   onClick={() => revoke(k.id)}
-                  className="ml-auto text-rose-400 hover:text-rose-300"
+                  className="ml-auto text-rose-600 hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
                 >
                   {t('settings.revoke')}
                 </button>
@@ -246,17 +246,17 @@ export function SettingsPage() {
           </ul>
         </div>
 
-        <div className="mt-8 rounded-lg border border-cyan-900/50 bg-slate-950/50 p-6">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">
+        <div className="mt-8 rounded-xl border border-slate-200/95 bg-white/95 p-6 shadow-sm dark:border-cyan-900/50 dark:bg-slate-950/50 dark:shadow-none">
+          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slate-800 dark:text-cyan-200">
             {t('settings.clientSnippetTitle')}
           </h2>
-          <pre className="thin-scrollbar mt-3 max-h-64 overflow-auto rounded border border-cyan-900/40 bg-black/60 p-3 font-mono text-[10px] leading-relaxed text-cyan-500/95">
+          <pre className="thin-scrollbar mt-3 max-h-64 overflow-auto rounded-lg border border-slate-200/90 bg-slate-100/90 p-3 font-mono text-[10px] leading-relaxed text-slate-800 dark:border-cyan-900/40 dark:bg-black/60 dark:text-cyan-500/95">
             {CLIENT_SNIPPET}
           </pre>
           <button
             type="button"
             onClick={copySnippet}
-            className="mt-3 rounded border border-cyan-800/50 px-3 py-1.5 text-[10px] font-semibold uppercase text-cyan-500 hover:bg-cyan-950/50"
+            className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-[10px] font-semibold uppercase text-slate-600 hover:bg-slate-100 dark:border-cyan-800/50 dark:text-cyan-500 dark:hover:bg-cyan-950/50"
           >
             {t('settings.copy')}
           </button>

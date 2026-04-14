@@ -8,8 +8,8 @@
     "./detection": "./detectionMiddleware.mjs"
   },
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node server.mjs"
+    "start": "node --env-file=.env server.mjs",
+    "dev": "node --env-file=.env server.mjs"
   },
   "dependencies": {
     "nodemon": "^3.1.14",
