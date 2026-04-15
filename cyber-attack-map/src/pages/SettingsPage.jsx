@@ -28,9 +28,17 @@ await fetch(\`\${BRIDGE}/ingest\`, {
   }),
 });`;
 
+const ADMIN_SECRET_STORAGE = 'pd-admin-secret';
+
 export function SettingsPage() {
   const { t, locale, setLocale } = useI18n();
-  const [adminSecret, setAdminSecret] = useState('');
+  const [adminSecret, setAdminSecret] = useState(() => {
+    try {
+      return localStorage.getItem(ADMIN_SECRET_STORAGE) || '';
+    } catch {
+      return '';
+    }
+  });
   const [keyLabel, setKeyLabel] = useState('');
   const [keys, setKeys] = useState([]);
   const [newKey, setNewKey] = useState('');
@@ -40,6 +48,14 @@ export function SettingsPage() {
   useEffect(() => {
     document.title = `${t('brand.name')} – ${t('nav.settings')}`;
   }, [t, locale]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_SECRET_STORAGE, adminSecret);
+    } catch {
+      /* ignore */
+    }
+  }, [adminSecret]);
 
   const headers = useCallback(() => {
     const h = { 'Content-Type': 'application/json' };

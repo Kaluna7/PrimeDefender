@@ -4,10 +4,9 @@ import worldGeo from '../../assets/world.geo.json';
 import { fetchLandDotDataset } from '../../utils/landDotNoise.js';
 import { GEO_BOUNDING, LAND_DOT_COUNT, MAP_BASE } from '../../config/cyberMapConfig.js';
 import { useI18n } from '../../i18n/I18nContext.jsx';
+import { MAX_MAP_ARCS } from '../../constants/monitoringLimits.js';
 
 echarts.registerMap('world', worldGeo);
-
-const MAX_ARC = 48;
 
 function hasValidEndpoints(a) {
   const f = a?.from;
@@ -26,17 +25,56 @@ function hasValidEndpoints(a) {
   );
 }
 
-/**
- * When an incident is selected, draw only that route so the map matches the detail panel.
- * Otherwise show the last MAX_ARC valid incidents (session can include old ngrok/US tests).
- */
-export function pickDisplayAttacks(attacks, selectedAttackId) {
-  const validRecent = attacks.filter(hasValidEndpoints).slice(-MAX_ARC);
-  if (selectedAttackId) {
-    const one = attacks.find((x) => x.id === selectedAttackId && hasValidEndpoints(x));
-    if (one) return [one];
+/** Last N valid incidents — each stays on the map as new ones arrive (until cap). */
+export function pickDisplayAttacks(attacks) {
+  return attacks.filter(hasValidEndpoints).slice(-MAX_MAP_ARCS);
+}
+
+function quantizeCoord(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function routeKeyForAttack(a) {
+  return [
+    quantizeCoord(a.from.lat),
+    quantizeCoord(a.from.lon),
+    quantizeCoord(a.to.lat),
+    quantizeCoord(a.to.lon),
+  ].join('|');
+}
+
+function hashString(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0;
   }
-  return validRecent;
+  return Math.abs(hash);
+}
+
+function curvenessForRoute(routeKey) {
+  const hash = hashString(routeKey);
+  const lane = hash % 7;
+  const sign = hash % 2 === 0 ? 1 : -1;
+  return sign * (0.08 + lane * 0.024);
+}
+
+function collapseRoutes(attacks, selectedAttackId) {
+  const byRoute = new Map();
+  for (const attack of attacks) {
+    const key = routeKeyForAttack(attack);
+    const current = byRoute.get(key);
+    if (!current) {
+      byRoute.set(key, { attack, routeKey: key, count: 1 });
+      continue;
+    }
+
+    current.count += 1;
+    const selectedWins = selectedAttackId && attack.id === selectedAttackId;
+    if (selectedWins || attack.createdAt >= current.attack.createdAt) {
+      current.attack = selectedWins ? attack : attack;
+    }
+  }
+  return Array.from(byRoute.values());
 }
 
 /** Single map palette — not tied to app light/dark theme. */
@@ -50,27 +88,35 @@ function buildOption(landDots, attacks, selectedAttackId) {
     value: d.position,
   }));
 
-  const recent = attacks.slice(-MAX_ARC);
+  const recent = attacks.slice(-MAX_MAP_ARCS);
+  const routes = collapseRoutes(recent, selectedAttackId);
   const highlightedIds = new Set(
-    selectedAttackId ? [selectedAttackId] : recent.slice(-2).map((a) => a.id).filter(Boolean)
+    selectedAttackId ? [selectedAttackId] : routes.slice(-2).map((r) => r.attack.id).filter(Boolean)
   );
 
-  const lineData = recent.map((a, i) => ({
-    coords: [
-      [a.from.lon, a.from.lat],
-      [a.to.lon, a.to.lat],
-    ],
-    attackId: a.id,
-    lineStyle: {
-      width: Math.min(3, 1.1 + (a.ddos?.peakGbps ? Math.min(1.2, a.ddos.peakGbps * 0.04) : 0)),
-      curveness: 0.1 + (i % 9) * 0.018,
-      opacity: 0.78 + (i % 4) * 0.05,
-      color: '#ff9328',
-    },
-  }));
+  const lineData = routes.map(({ attack: a, routeKey, count }, index) => {
+    const baseW = Math.min(3, 1.1 + (a.ddos?.peakGbps ? Math.min(1.2, a.ddos.peakGbps * 0.04) : 0));
+    const hi = highlightedIds.has(a.id);
+    const curveness = curvenessForRoute(routeKey);
+    return {
+      coords: [
+        [a.from.lon, a.from.lat],
+        [a.to.lon, a.to.lat],
+      ],
+      attackId: a.id,
+      routeKey,
+      routeCount: count,
+      lineStyle: {
+        width: hi ? Math.max(baseW, 3.4) : Math.min(3.1, baseW + Math.min(0.45, (count - 1) * 0.12)),
+        curveness,
+        opacity: hi ? 0.98 : Math.max(0.62, 0.78 + (index % 4) * 0.05),
+        color: hi ? '#ffb020' : '#ff9328',
+      },
+    };
+  });
 
   const pulseData = [];
-  for (const a of recent) {
+  for (const { attack: a, count } of routes) {
     const selected = highlightedIds.has(a.id);
     const sourceTitle = a.sourceLabel || a.attackerIp || '';
     const targetTitle = a.targetLabel || a.sourceLabel || '';
@@ -79,20 +125,21 @@ function buildOption(landDots, attacks, selectedAttackId) {
       value: [a.from.lon, a.from.lat],
       attackId: a.id,
       name: sourceTitle,
-      symbolSize: 5,
+      symbolSize: Math.min(8, 5 + Math.min(3, count - 1)),
       itemStyle: {
         color: 'rgba(255,150,70,0.55)',
         shadowBlur: 8,
         shadowColor: 'rgba(255,120,40,0.35)',
       },
       label: {
-        show: Boolean(selected && sourceTitle),
+        show: Boolean(sourceTitle),
         formatter: '{b}',
         position: 'left',
         distance: 6,
-        color: MARKER_LABEL,
+        color: selected ? '#ffffff' : 'rgba(241,245,249,0.92)',
         fontSize: 10,
-        backgroundColor: 'rgba(8,12,20,0.66)',
+        fontWeight: selected ? 700 : 500,
+        backgroundColor: selected ? 'rgba(8,12,20,0.82)' : 'rgba(8,12,20,0.58)',
         padding: [2, 5],
         borderRadius: 4,
       },
@@ -101,20 +148,21 @@ function buildOption(landDots, attacks, selectedAttackId) {
       value: [a.to.lon, a.to.lat],
       attackId: a.id,
       name: targetTitle,
-      symbolSize: selected ? 12 : 7,
+      symbolSize: selected ? 12 : Math.min(10, 7 + Math.min(3, count - 1)),
       itemStyle: {
         color: 'rgba(255,165,65,0.98)',
         shadowBlur: selected ? 22 : 12,
         shadowColor: 'rgba(255,130,40,0.55)',
       },
       label: {
-        show: Boolean(selected && targetTitle),
+        show: Boolean(targetTitle),
         formatter: '{b}',
-        color: MARKER_LABEL,
+        color: selected ? '#ffffff' : 'rgba(241,245,249,0.88)',
         fontSize: 11,
+        fontWeight: selected ? 700 : 500,
         position: 'right',
         distance: 6,
-        backgroundColor: 'rgba(8,12,20,0.66)',
+        backgroundColor: selected ? 'rgba(8,12,20,0.82)' : 'rgba(8,12,20,0.56)',
         padding: [2, 5],
         borderRadius: 4,
       },
@@ -164,19 +212,14 @@ function buildOption(landDots, attacks, selectedAttackId) {
         coordinateSystem: 'geo',
         zlevel: 2,
         data: lineData,
+        /** Per-route styles only — a series-level lineStyle merges badly and can hide multiple arcs. */
         effect: {
           show: true,
-          period: 5.5,
-          trailLength: 0.42,
+          period: 5.5 + (routes.length % 5) * 0.15,
+          trailLength: 0.28,
           symbol: 'arrow',
-          symbolSize: 5,
-          color: 'rgba(255,160,70,0.85)',
-        },
-        lineStyle: {
-          color: '#ff9328',
-          width: 1.35,
-          opacity: 0.9,
-          curveness: 0.14,
+          symbolSize: 4,
+          color: 'rgba(255,160,70,0.75)',
         },
       },
       {
@@ -191,6 +234,9 @@ function buildOption(landDots, attacks, selectedAttackId) {
         },
         symbolSize: 8,
         showEffectOn: 'render',
+        labelLayout: {
+          hideOverlap: false,
+        },
         data: pulseData,
       },
     ],
@@ -206,16 +252,13 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
   const [landDots, setLandDots] = useState([]);
   selectIdRef.current = onSelectAttackId;
 
-  const displayAttacks = useMemo(
-    () => pickDisplayAttacks(attacks, selectedAttackId),
-    [attacks, selectedAttackId]
-  );
+  const displayAttacks = useMemo(() => pickDisplayAttacks(attacks), [attacks]);
   displayAttacksRef.current = displayAttacks;
 
   const mapHint =
     attacks.length > 0
-      ? selectedAttackId && displayAttacks.length === 1
-        ? t('monitoring.mapHintSelected')
+      ? selectedAttackId
+        ? t('monitoring.mapHintHighlight', { n: displayAttacks.length })
         : t('monitoring.mapHintAll', { n: displayAttacks.length })
       : '';
 

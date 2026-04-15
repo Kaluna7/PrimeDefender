@@ -5,6 +5,13 @@
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { createApiKey, loadApiKeys, revokeApiKey, verifyApiKey } from './apiKeys.mjs';
+import { normalizeIncident } from './normalizeIncident.mjs';
+import {
+  findHistoryOlderThanWindow,
+  findRecentByCreatedAt,
+  insertIncident,
+  mongoDisabled,
+} from './mongo.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() || '';
@@ -62,7 +69,14 @@ function healthPayload() {
     version: BRIDGE_VERSION,
     ingestEnabled: INGEST_ENABLED,
     adminConfigured: Boolean(ADMIN_SECRET),
+    mongo: {
+      persistence: !mongoDisabled(),
+    },
   };
+}
+
+function reqUrl(req) {
+  return new URL(req.url || '/', 'http://127.0.0.1');
 }
 
 async function authorizeIngest(req) {
@@ -133,10 +147,12 @@ const httpServer = createServer(async (req, res) => {
     sendJson(res, 200, {
       ...healthPayload(),
       note: 'Bridge v2 — set INGEST_ENABLED=true for POST /ingest. Use INGEST_TOKEN or per-customer API keys.',
-      endpoints: {
+        endpoints: {
         health: 'GET /health',
         ingest: 'POST /ingest',
         adminKeys: 'GET|POST /admin/api-keys, DELETE /admin/api-keys/:id (X-Admin-Secret)',
+        incidentsRecent: 'GET /admin/incidents/recent?hours=24 (X-Admin-Secret)',
+        incidentsHistory: 'GET /admin/incidents/history?windowHours=24&limit=50&skip=0 (X-Admin-Secret)',
       },
     });
     return;
@@ -205,6 +221,60 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  const adminPath = reqUrl(req).pathname.replace(/\/$/, '') || '/';
+  if (req.method === 'GET' && adminPath === '/admin/incidents/recent') {
+    if (!assertAdmin(req, res)) return;
+    if (mongoDisabled()) {
+      sendJson(res, 503, {
+        ok: false,
+        error: 'mongo_disabled',
+        hint: 'Unset MONGODB_DISABLED or set MONGODB_URI.',
+      });
+      return;
+    }
+    try {
+      const q = reqUrl(req).searchParams;
+      const hours = Math.min(168, Math.max(1, Number(q.get('hours')) || 24));
+      const ms = hours * 3600 * 1000;
+      const incidents = await findRecentByCreatedAt(ms);
+      sendJson(res, 200, { ok: true, hours, count: incidents.length, incidents });
+    } catch (e) {
+      sendJson(res, 503, { ok: false, error: 'mongo_unavailable', message: String(e?.message || e) });
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && adminPath === '/admin/incidents/history') {
+    if (!assertAdmin(req, res)) return;
+    if (mongoDisabled()) {
+      sendJson(res, 503, {
+        ok: false,
+        error: 'mongo_disabled',
+        hint: 'Unset MONGODB_DISABLED or set MONGODB_URI.',
+      });
+      return;
+    }
+    try {
+      const q = reqUrl(req).searchParams;
+      const hours = Math.min(168, Math.max(1, Number(q.get('windowHours')) || 24));
+      const windowMs = hours * 3600 * 1000;
+      const limit = Math.min(500, Math.max(1, Number(q.get('limit')) || 50));
+      const skip = Math.max(0, Number(q.get('skip')) || 0);
+      const incidents = await findHistoryOlderThanWindow({ windowMs, skip, limit });
+      sendJson(res, 200, {
+        ok: true,
+        windowHours: hours,
+        skip,
+        limit,
+        count: incidents.length,
+        incidents,
+      });
+    } catch (e) {
+      sendJson(res, 503, { ok: false, error: 'mongo_unavailable', message: String(e?.message || e) });
+    }
+    return;
+  }
+
   if (req.method === 'POST' && (p === '/ingest' || p === '/ingest/')) {
     try {
       if (!INGEST_ENABLED) {
@@ -240,8 +310,10 @@ const httpServer = createServer(async (req, res) => {
         return;
       }
 
-      io.emit('attack', payload);
-      const tag = [payload.siteId, payload.tenantId, payload.id].filter(Boolean).join(' ') || 'event';
+      const incident = normalizeIncident(payload);
+      io.emit('attack', incident);
+      await insertIncident(incident);
+      const tag = [incident.siteId, incident.tenantId, incident.id].filter(Boolean).join(' ') || 'event';
       console.log('[ingest] broadcast → UI', tag);
       sendJson(res, 200, { ok: true, broadcast: true });
     } catch (e) {

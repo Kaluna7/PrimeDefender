@@ -10,6 +10,8 @@ const DDOS_VECTOR_APP = 'application';
 const SAMPLE_LIMIT = 8192;
 const PATH_SAMPLE_LIMIT = 4096;
 const GEO_CACHE_TTL_MS = 10 * 60_000;
+const GEO_LOOKUP_TIMEOUT_MS = 4000;
+const REQUEST_COUNT_WINDOW_MS = 60_000;
 const BUCKET_IDLE_TTL_MS = 15 * 60_000;
 const HOUSEKEEPING_EVERY = 512;
 const STATIC_ASSET_RE = /\.(?:avif|bmp|css|gif|ico|jpeg|jpg|js|json|map|mp3|mp4|png|svg|txt|webm|webp|woff2?)$/i;
@@ -66,6 +68,8 @@ const XSS_RULES = [
   { re: /document\.(cookie|write|domain)\b/i, id: 'document_sink' },
   { re: /window\.(location|document)\b/i, id: 'window_sink' },
   { re: /\balert\s*\(\s*['"\d]/i, id: 'alert_probe' },
+  { re: /\b(?:prompt|confirm)\s*\(/i, id: 'dialog_probe' },
+  { re: /\bconsole\.log\s*\(/i, id: 'console_probe' },
   { re: /<\s*img\b[^>]{0,120}\bonerror\b/i, id: 'img_onerror' },
   { re: /%3[Cc]\s*script/i, id: 'encoded_script' },
   { re: /\\x3c\s*script/i, id: 'hex_script' },
@@ -414,6 +418,118 @@ function detectionTitle(detection) {
   return 'Detection';
 }
 
+function requestIdFromReq(req) {
+  const raw =
+    req.id ??
+    req.headers?.['x-request-id'] ??
+    req.headers?.['x-correlation-id'] ??
+    req.headers?.['cf-ray'];
+  return typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 128) : randomUUID();
+}
+
+function forwardedForFromReq(req) {
+  const raw = req.headers?.['x-forwarded-for'];
+  return typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 512) : undefined;
+}
+
+function inferAuthStatus(detection) {
+  if (typeof detection !== 'string') return undefined;
+  if (detection.startsWith('auth_bypass')) return 'bypass_attempt';
+  return undefined;
+}
+
+function detectTypeFromDetection(detection) {
+  if (typeof detection !== 'string' || !detection.trim()) return undefined;
+  const idx = detection.indexOf(':');
+  return idx === -1 ? detection.trim() : detection.slice(0, idx).trim();
+}
+
+function confidenceForDetection(detection, severity) {
+  if (typeof detection !== 'string') return undefined;
+  if (detection.startsWith('cmd_injection') || detection.startsWith('sqli') || detection.startsWith('file_inclusion')) {
+    return 0.96;
+  }
+  if (detection.startsWith('xss') || detection.startsWith('path_traversal')) {
+    return 0.91;
+  }
+  if (detection.startsWith('auth_bypass')) {
+    return 0.87;
+  }
+  if (detection.startsWith('ddos') || detection.startsWith('brute_force') || detection.startsWith('scanner')) {
+    return 0.83;
+  }
+  if (detection.startsWith('bot_activity')) {
+    return 0.79;
+  }
+  if (severity === 'critical') return 0.93;
+  if (severity === 'high') return 0.86;
+  if (severity === 'medium') return 0.74;
+  return 0.61;
+}
+
+function countRecentHits(bucketKey, withinMs = 60_000) {
+  const bucket = rateBuckets.get(bucketKey);
+  if (!bucket?.ts?.length) return 0;
+  const now = Date.now();
+  let total = 0;
+  for (let i = bucket.ts.length - 1; i >= 0; i -= 1) {
+    if (now - bucket.ts[i] > withinMs) break;
+    total += 1;
+  }
+  return total;
+}
+
+function recordActivitySample(bucketKey, now = Date.now(), windowMs = REQUEST_COUNT_WINDOW_MS) {
+  let bucket = rateBuckets.get(bucketKey);
+  if (!bucket) {
+    bucket = { ts: [], lastSeen: now };
+    rateBuckets.set(bucketKey, bucket);
+  }
+  bucket.lastSeen = now;
+  pruneHits(bucket, now, windowMs);
+  bucket.ts.push(now);
+  housekeepingCounter += 1;
+  if (housekeepingCounter % HOUSEKEEPING_EVERY === 0) cleanupState(now);
+  return bucket.ts.length;
+}
+
+function formatGeoLabel(parts, fallback) {
+  const unique = [];
+  for (const part of parts) {
+    if (typeof part !== 'string') continue;
+    const clean = part.trim();
+    if (!clean) continue;
+    if (!unique.includes(clean)) unique.push(clean);
+  }
+  return unique.join(', ') || fallback;
+}
+
+async function fetchGeoCandidate(url, parse) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(GEO_LOOKUP_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const out = parse(json);
+    if (
+      out &&
+      typeof out.lat === 'number' &&
+      typeof out.lon === 'number' &&
+      Number.isFinite(out.lat) &&
+      Number.isFinite(out.lon)
+    ) {
+      return {
+        lat: clamp(out.lat, -85, 85),
+        lon: clamp(out.lon, -180, 180),
+        label: out.label,
+        isp: typeof out.isp === 'string' && out.isp.trim() ? out.isp.trim().slice(0, 120) : undefined,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 async function geoLookup(ip, siteRegion) {
   if (!ip) {
     return { lat: siteRegion.lat, lon: siteRegion.lon, label: 'unknown-source' };
@@ -429,18 +545,47 @@ async function geoLookup(ip, siteRegion) {
   const cached = GEO_CACHE.get(clean);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   let value = { lat: 0, lon: 0, label: clean };
-  try {
-    const res = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,lat,lon,city,country`,
-      { signal: AbortSignal.timeout(4000) }
-    );
-    const j = await res.json();
-    if (j.status === 'success' && typeof j.lat === 'number' && typeof j.lon === 'number') {
-      const label = [j.city, j.country].filter(Boolean).join(', ') || clean;
-      value = { lat: j.lat, lon: j.lon, label };
+  const providers = [
+    () =>
+      fetchGeoCandidate(`https://ipwho.is/${encodeURIComponent(clean)}`, (j) => {
+        if (j?.success !== true) return null;
+        return {
+          lat: j.latitude,
+          lon: j.longitude,
+          label: formatGeoLabel([j.city, j.region, j.country], clean),
+          isp: j.connection?.isp,
+        };
+      }),
+    () =>
+      fetchGeoCandidate(`https://ipapi.co/${encodeURIComponent(clean)}/json/`, (j) => {
+        if (typeof j?.latitude !== 'number' || typeof j?.longitude !== 'number') return null;
+        return {
+          lat: j.latitude,
+          lon: j.longitude,
+          label: formatGeoLabel([j.city, j.region, j.country_name], clean),
+          isp: j.org,
+        };
+      }),
+    () =>
+      fetchGeoCandidate(
+        `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,lat,lon,city,regionName,country`,
+        (j) => {
+          if (j?.status !== 'success') return null;
+          return {
+            lat: j.lat,
+            lon: j.lon,
+            label: formatGeoLabel([j.city, j.regionName, j.country], clean),
+            isp: j.isp,
+          };
+        }
+      ),
+  ];
+  for (const provider of providers) {
+    const hit = await provider();
+    if (hit) {
+      value = hit;
+      break;
     }
-  } catch {
-    /* ignore */
   }
   GEO_CACHE.set(clean, { value, expiresAt: Date.now() + GEO_CACHE_TTL_MS });
   return value;
@@ -548,6 +693,12 @@ export function createSecurityDetectionMiddleware(opts) {
       try {
         const sourceOverride = extractSourceGeoOverride(req);
         const from = sourceOverride || (geo ? await geoLookup(ip, siteRegion) : { lat: 0, lon: 0, label: ip });
+        const userAgent = userAgentFromReq(req);
+        const forwardedFor = forwardedForFromReq(req);
+        const requestId = requestIdFromReq(req);
+        const detectType = event.detectType || detectTypeFromDetection(event.detection);
+        const detectConfidence =
+          typeof event.detectConfidence === 'number' ? event.detectConfidence : confidenceForDetection(event.detection, event.severity);
         const payload = {
           id: randomUUID(),
           createdAt: Date.now(),
@@ -564,8 +715,19 @@ export function createSecurityDetectionMiddleware(opts) {
           blocked: event.blocked !== false,
           action: event.blocked === false ? 'observed' : 'blocked',
           attackerIp: ip,
-          userAgent: userAgentFromReq(req),
+          userAgent,
           detection: event.detection,
+          requestId,
+          forwardedFor,
+          targetService: event.targetService || opts.serviceName || opts.siteId || siteLabel,
+          authStatus: event.authStatus || inferAuthStatus(event.detection),
+          detectType,
+          detectConfidence,
+          responseStatus: event.responseStatus,
+          responseTimeMs: event.responseTimeMs,
+          mitigation: event.mitigation,
+          ipIntelIsp: event.ipIntelIsp || from.isp,
+          requestsLast1m: typeof event.requestsLast1m === 'number' ? event.requestsLast1m : undefined,
         };
         if (event.ddos) payload.ddos = event.ddos;
         await sendIngest(ingestUrl, apiKey, payload);
@@ -578,20 +740,57 @@ export function createSecurityDetectionMiddleware(opts) {
   function handleDetection(req, res, context, cfg, detail) {
     if (!cfg?.enabled) return false;
     const blocked = cfg.mode !== 'observe';
+    const baseMitigation = detail.mitigation || (blocked ? 'request_block' : 'observe');
+    const requestsLast1m =
+      typeof detail.requestsLast1m === 'number' ? detail.requestsLast1m : countRecentHits(`req:${context.ip}`);
     if (blocked) {
-      respondBlocked(res, detail.statusCode ?? 403, detail.reason, detail.rule, detail.detection, detail.retryAfterSec);
+      const responseStatus = detail.statusCode ?? 403;
+      const mitigation = detail.mitigation || (responseStatus === 429 ? 'temp_block' : baseMitigation);
+      const responseTimeMs = Math.max(1, Date.now() - context.startedAt);
+      respondBlocked(res, responseStatus, detail.reason, detail.rule, detail.detection, detail.retryAfterSec);
+      emitIncident(req, context.ip, {
+        blocked,
+        category: detail.category,
+        severity: detail.severity,
+        detection: detail.detection,
+        targetLabel: detail.targetLabel,
+        path: context.path,
+        method: context.method,
+        ddos: detail.ddos,
+        authStatus: detail.authStatus,
+        detectType: detail.detectType,
+        detectConfidence: detail.detectConfidence,
+        responseStatus,
+        responseTimeMs,
+        mitigation,
+        requestsLast1m,
+      });
+      return true;
     }
-    emitIncident(req, context.ip, {
-      blocked,
-      category: detail.category,
-      severity: detail.severity,
-      detection: detail.detection,
-      targetLabel: detail.targetLabel,
-      path: context.path,
-      method: context.method,
-      ddos: detail.ddos,
+
+    res.once('finish', () => {
+      const responseStatus = res.statusCode || detail.statusCode || 200;
+      const mitigation = detail.mitigation || (responseStatus >= 400 ? 'observed_error' : baseMitigation);
+      const responseTimeMs = Math.max(1, Date.now() - context.startedAt);
+      emitIncident(req, context.ip, {
+        blocked: false,
+        category: detail.category,
+        severity: detail.severity,
+        detection: detail.detection,
+        targetLabel: detail.targetLabel,
+        path: context.path,
+        method: context.method,
+        ddos: detail.ddos,
+        authStatus: detail.authStatus,
+        detectType: detail.detectType,
+        detectConfidence: detail.detectConfidence,
+        responseStatus,
+        responseTimeMs,
+        mitigation,
+        requestsLast1m,
+      });
     });
-    return blocked;
+    return false;
   }
 
   return function securityDetectionMiddleware(req, res, next) {
@@ -601,11 +800,13 @@ export function createSecurityDetectionMiddleware(opts) {
     }
 
     const context = collectScanContext(req);
+    context.startedAt = Date.now();
     context.ip = clientIp(req);
     if (!context.ip) {
       next();
       return;
     }
+    recordActivitySample(`req:${context.ip}`, context.startedAt);
 
     const uaHit = uaCfg.enabled ? detectSuspiciousUserAgent(context.ua, uaCfg) : null;
     const scannerPathHit = scannerCfg.enabled ? detectScannerPath(context.path) : null;
@@ -625,7 +826,8 @@ export function createSecurityDetectionMiddleware(opts) {
 
     const onBrutePath = bruteCfg.enabled && matchesBrutePath(context.path, context.method, bruteCfg);
     if (onBrutePath) {
-      const rate = recordRateWindow(`brute:${context.ip}:${context.path}`, bruteCfg);
+      const bucketKey = `brute:${context.ip}:${context.path}`;
+      const rate = recordRateWindow(bucketKey, bruteCfg);
       if (!rate.allowed) {
         if (
           handleDetection(req, res, context, bruteCfg, {
@@ -636,6 +838,7 @@ export function createSecurityDetectionMiddleware(opts) {
             severity: 'high',
             detection: 'brute_force',
             targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · BruteForce`),
+            requestsLast1m: countRecentHits(bucketKey),
           })
         )
           return;
@@ -643,7 +846,8 @@ export function createSecurityDetectionMiddleware(opts) {
     }
 
     if (!onBrutePath && ddosCfg.enabled) {
-      const rate = recordRateWindow(`ddos:${context.ip}`, ddosCfg);
+      const bucketKey = `ddos:${context.ip}`;
+      const rate = recordRateWindow(bucketKey, ddosCfg);
       if (!rate.allowed) {
         if (
           handleDetection(req, res, context, ddosCfg, {
@@ -656,6 +860,7 @@ export function createSecurityDetectionMiddleware(opts) {
             detection: 'ddos_flood',
             targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · flood`),
             ddos: { vector: DDOS_VECTOR_APP },
+            requestsLast1m: countRecentHits(bucketKey),
           })
         )
           return;
@@ -664,7 +869,8 @@ export function createSecurityDetectionMiddleware(opts) {
 
     const scannerLike = Boolean(scannerPathHit || (uaHit && ['sqlmap', 'nikto', 'scanner'].includes(uaHit.id)));
     if (scannerLike && scannerCfg.enabled) {
-      const rate = recordRateWindow(`scanner:${context.ip}`, scannerCfg);
+      const bucketKey = `scanner:${context.ip}`;
+      const rate = recordRateWindow(bucketKey, scannerCfg);
       if (!rate.allowed) {
         if (
           handleDetection(req, res, context, scannerCfg, {
@@ -679,6 +885,7 @@ export function createSecurityDetectionMiddleware(opts) {
               siteLabel,
               `${context.method} ${context.path} · Scanner:${scannerPathHit?.id || uaHit?.id || 'burst'}`
             ),
+            requestsLast1m: countRecentHits(bucketKey),
           })
         )
           return;
@@ -687,7 +894,8 @@ export function createSecurityDetectionMiddleware(opts) {
 
     const botUa = uaHit && ['curl', 'python_requests', 'go_http', 'automation'].includes(uaHit.id);
     if (botUa && botCfg.enabled) {
-      const rate = recordRateWindow(`bot:${context.ip}`, botCfg);
+      const bucketKey = `bot:${context.ip}`;
+      const rate = recordRateWindow(bucketKey, botCfg);
       if (!rate.allowed) {
         if (
           handleDetection(req, res, context, botCfg, {
@@ -699,6 +907,7 @@ export function createSecurityDetectionMiddleware(opts) {
             category: 'botnet',
             detection: `bot_activity:${uaHit.id}`,
             targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Bot:${uaHit.id}`),
+            requestsLast1m: countRecentHits(bucketKey),
           })
         )
           return;
@@ -728,6 +937,7 @@ export function createSecurityDetectionMiddleware(opts) {
           category: 'botnet',
           detection: `scanner:${scannerPathHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Scanner:${scannerPathHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -741,6 +951,7 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'high',
           detection: `path_traversal:${pathTravHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · PathTrav:${pathTravHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -754,6 +965,7 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'high',
           detection: `file_inclusion:${fileIncludeHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · FileInclude:${fileIncludeHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -767,6 +979,7 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'critical',
           detection: `cmd_injection:${cmdHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Cmd:${cmdHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -780,6 +993,7 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'critical',
           detection: `sqli:${sqliHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · SQLi:${sqliHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -793,6 +1007,7 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'high',
           detection: `xss:${xssHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · XSS:${xssHit.id}`),
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
@@ -806,13 +1021,16 @@ export function createSecurityDetectionMiddleware(opts) {
           severity: 'high',
           detection: `auth_bypass:${authBypassHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · AuthBypass:${authBypassHit.id}`),
+          authStatus: 'bypass_attempt',
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
         return;
     }
 
     if (suspiciousHit && suspiciousReqCfg.enabled) {
-      const rate = recordRateWindow(`suspicious:${context.ip}`, suspiciousReqCfg);
+      const bucketKey = `suspicious:${context.ip}`;
+      const rate = recordRateWindow(bucketKey, suspiciousReqCfg);
       if (!rate.allowed) {
         if (
           handleDetection(req, res, context, suspiciousReqCfg, {
@@ -823,6 +1041,7 @@ export function createSecurityDetectionMiddleware(opts) {
             severity: 'medium',
             detection: `suspicious_request:${suspiciousHit.id}`,
             targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
+            requestsLast1m: countRecentHits(bucketKey),
           })
         )
           return;
@@ -834,17 +1053,16 @@ export function createSecurityDetectionMiddleware(opts) {
             severity: 'medium',
             detection: `suspicious_request:${suspiciousHit.id}`,
             targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
+            requestsLast1m: countRecentHits(`req:${context.ip}`),
           })
         )
           return;
       } else {
-        emitIncident(req, context.ip, {
-          blocked: false,
+        handleDetection(req, res, context, suspiciousReqCfg, {
           severity: 'medium',
           detection: `suspicious_request:${suspiciousHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Suspicious:${suspiciousHit.id}`),
-          path: context.path,
-          method: context.method,
+          requestsLast1m: countRecentHits(`req:${context.ip}`),
         });
       }
     }

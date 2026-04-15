@@ -1,10 +1,26 @@
-import { THREAT_CATEGORY, DDOS_VECTOR, SEVERITY_ORDER } from '../constants/threatCategories.js';
+/**
+ * Server-side mirror of cyber-attack-map/src/utils/normalizeAttack.js (minimal deps).
+ */
+import { randomBytes } from 'node:crypto';
 
+const THREAT_CATEGORY = {
+  DDOS: 'ddos',
+  INTRUSION: 'intrusion',
+  MALWARE: 'malware',
+  BOTNET: 'botnet',
+  UNKNOWN: 'unknown',
+};
 const ALLOWED_CATEGORY = new Set(Object.values(THREAT_CATEGORY));
+const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
+
+const DDOS_VECTOR = {
+  VOLUMETRIC: 'volumetric',
+  PROTOCOL: 'protocol',
+  APPLICATION: 'application',
+};
 
 function normalizeDdos(rawDdos) {
   if (!rawDdos || typeof rawDdos !== 'object') return undefined;
-
   const out = {};
   if (typeof rawDdos.vector === 'string' && Object.values(DDOS_VECTOR).includes(rawDdos.vector)) {
     out.vector = rawDdos.vector;
@@ -18,15 +34,10 @@ function normalizeDdos(rawDdos) {
   if (typeof rawDdos.packetsPerSec === 'number' && Number.isFinite(rawDdos.packetsPerSec)) {
     out.packetsPerSec = rawDdos.packetsPerSec;
   }
-
   return Object.keys(out).length ? out : undefined;
 }
 
-/**
- * Normalize upstream (middleware) payloads. Does not invent categories, metrics, or labels.
- * Expected minimum: { from: { lat, lon }, to: { lat, lon } }.
- */
-export function normalizeAttackPayload(raw) {
+export function normalizeIncident(raw) {
   let category = THREAT_CATEGORY.UNKNOWN;
   if (raw.category && ALLOWED_CATEGORY.has(raw.category)) {
     category = raw.category;
@@ -58,7 +69,7 @@ export function normalizeAttackPayload(raw) {
   const id =
     typeof raw.id === 'string' && raw.id.length > 0
       ? raw.id
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      : `${Date.now()}-${randomBytes(6).toString('hex')}`;
 
   const tenantId = typeof raw.tenantId === 'string' ? raw.tenantId : undefined;
   const siteId = typeof raw.siteId === 'string' ? raw.siteId : undefined;

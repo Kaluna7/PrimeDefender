@@ -6,6 +6,7 @@ import {
   SEVERITY_STYLE,
 } from '../../constants/threatCategories.js';
 import { useI18n } from '../../i18n/I18nContext.jsx';
+import { summarizeAttackLog } from '../../utils/attackLogFormatter.js';
 
 const VECTOR_LABEL = {
   [DDOS_VECTOR.VOLUMETRIC]: 'Volumetric',
@@ -41,6 +42,8 @@ export function LiveAttackFeed({
   selectedId = null,
   onSelectAttack,
   className = '',
+  /** When set, overrides default empty-state copy (e.g. archive / history list). */
+  emptyHint = null,
 }) {
   const { t, locale } = useI18n();
 
@@ -48,21 +51,23 @@ export function LiveAttackFeed({
     return [...attacks].reverse().slice(0, maxRows);
   }, [attacks, maxRows]);
 
-  const emptyMessage = (() => {
-    if (!socketEnabled) {
-      return t('feed.emptySocketOff');
-    }
-    if (bridgeState === 'checking') {
-      return t('feed.emptyChecking');
-    }
-    if (bridgeState === 'bad') {
-      return t('feed.emptyBad');
-    }
-    if (!socketConnected) {
-      return t('feed.emptyConnecting');
-    }
-    return t('feed.emptyIdle');
-  })();
+  const emptyMessage =
+    emptyHint ||
+    (() => {
+      if (!socketEnabled) {
+        return t('feed.emptySocketOff');
+      }
+      if (bridgeState === 'checking') {
+        return t('feed.emptyChecking');
+      }
+      if (bridgeState === 'bad') {
+        return t('feed.emptyBad');
+      }
+      if (!socketConnected) {
+        return t('feed.emptyConnecting');
+      }
+      return t('feed.emptyIdle');
+    })();
 
   return (
     <section
@@ -86,6 +91,7 @@ export function LiveAttackFeed({
             {rows.map((a) => {
               const cat = CATEGORY_STYLE[a.category] || CATEGORY_STYLE[THREAT_CATEGORY.UNKNOWN];
               const sev = SEVERITY_STYLE[a.severity] || SEVERITY_STYLE.medium;
+              const logSummary = summarizeAttackLog(a);
 
               const selected = selectedId === a.id;
               return (
@@ -159,6 +165,39 @@ export function LiveAttackFeed({
                     <span className="mx-1 text-slate-400 dark:text-cyan-800">→</span>
                     <span className="text-amber-800 dark:text-amber-100/90">{labelOrDash(a.targetLabel)}</span>
                   </p>
+
+                  <div className="mt-2 rounded-md border border-slate-200/90 bg-slate-50/95 p-2 dark:border-slate-800/70 dark:bg-slate-950/70">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-slate-600 dark:text-cyan-500/85">
+                        {t('feed.logTitle')}
+                      </p>
+                      <span className="rounded border border-slate-300/80 bg-white/80 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        {t('feed.openDetail')}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px]">
+                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
+                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">ID</p>
+                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.requestId}</p>
+                      </div>
+                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
+                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Detect</p>
+                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.detectType}</p>
+                      </div>
+                      <div className="col-span-2 rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
+                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Request</p>
+                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.request}</p>
+                      </div>
+                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
+                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Response</p>
+                        <p className="mt-0.5 font-mono text-slate-700 dark:text-slate-200">{logSummary.responseStatus}</p>
+                      </div>
+                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
+                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Action</p>
+                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.mitigation}</p>
+                      </div>
+                    </div>
+                  </div>
 
                   {a.category === THREAT_CATEGORY.DDOS && (
                     <div className="mt-2 space-y-1.5 border-t border-rose-200/90 pt-2 dark:border-rose-900/25">
