@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getStoredSessionToken } from './auth.js';
 
 const DEFAULT_URL = 'http://localhost:3000';
 
@@ -26,11 +27,14 @@ function isValidPayload(payload) {
  */
 export function connectAttackSocket(onAttack, onConnectionChange) {
   const url = import.meta.env.VITE_SOCKET_URL || DEFAULT_URL;
+  const sessionToken = getStoredSessionToken();
   const socket = io(url, {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    auth: sessionToken ? { sessionToken } : {},
+    query: sessionToken ? { session: sessionToken } : {},
   });
 
   const handleConnect = () => onConnectionChange?.(true);

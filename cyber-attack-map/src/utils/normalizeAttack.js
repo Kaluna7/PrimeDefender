@@ -22,6 +22,41 @@ function normalizeDdos(rawDdos) {
   return Object.keys(out).length ? out : undefined;
 }
 
+function coordString(point) {
+  const lat = point?.lat;
+  const lon = point?.lon;
+  if (typeof lat !== 'number' || typeof lon !== 'number') return undefined;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+  return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+}
+
+function synthesizeGeoMeta(rawGeoMeta, sourceLabel, fromPoint) {
+  const fromCoords = coordString(fromPoint);
+  const location =
+    rawGeoMeta && typeof rawGeoMeta.location === 'string' && rawGeoMeta.location.trim()
+      ? rawGeoMeta.location.trim().slice(0, 160)
+      : sourceLabel || undefined;
+  const coordinates =
+    rawGeoMeta && typeof rawGeoMeta.coordinates === 'string' && rawGeoMeta.coordinates.trim()
+      ? rawGeoMeta.coordinates.trim().slice(0, 64)
+      : fromCoords;
+  const accuracy =
+    rawGeoMeta && typeof rawGeoMeta.accuracy === 'string' && rawGeoMeta.accuracy.trim()
+      ? rawGeoMeta.accuracy.trim().slice(0, 32)
+      : fromCoords
+        ? 'MEDIUM'
+        : undefined;
+  const note =
+    rawGeoMeta && typeof rawGeoMeta.note === 'string' && rawGeoMeta.note.trim()
+      ? rawGeoMeta.note.trim().slice(0, 200)
+      : fromCoords
+        ? 'Derived from incident coordinates'
+        : undefined;
+
+  if (!location && !coordinates && !accuracy && !note) return undefined;
+  return { location, coordinates, accuracy, note };
+}
+
 /**
  * Normalize upstream (middleware) payloads. Does not invent categories, metrics, or labels.
  * Expected minimum: { from: { lat, lon }, to: { lat, lon } }.
@@ -146,6 +181,13 @@ export function normalizeAttackPayload(raw) {
   const requestsLast1m =
     typeof requestsLast1mRaw === 'number' && Number.isFinite(requestsLast1mRaw) ? Math.round(requestsLast1mRaw) : undefined;
 
+  const geoMetaRaw = raw.geoMeta ?? raw.geo;
+  const geoMeta = synthesizeGeoMeta(
+    geoMetaRaw && typeof geoMetaRaw === 'object' ? geoMetaRaw : undefined,
+    sourceLabel,
+    raw.from
+  );
+
   return {
     id,
     from: raw.from,
@@ -177,6 +219,9 @@ export function normalizeAttackPayload(raw) {
     mitigation,
     ipIntelIsp,
     requestsLast1m,
+    geoMeta,
+    ownerUserId: typeof raw.ownerUserId === 'string' ? raw.ownerUserId : undefined,
+    ownerEmail: typeof raw.ownerEmail === 'string' ? raw.ownerEmail : undefined,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
   };
 }

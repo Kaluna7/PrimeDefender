@@ -4,12 +4,24 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      colors: {
+        slark: {
+          bg: '#FFFFFF',
+          card: '#F8FAFC',
+          border: '#E2E8F0',
+          primary: '#C62828',
+          'primary-hover': '#B71C1C',
+          dark: '#1F2937',
+          text: '#111827',
+          muted: '#6B7280',
+        },
+      },
       fontFamily: {
         cyber: ['Orbitron', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        neon: '0 0 12px rgba(34, 211, 238, 0.55), 0 0 28px rgba(34, 211, 238, 0.25)',
-        'neon-amber': '0 0 12px rgba(251, 191, 36, 0.5), 0 0 24px rgba(251, 146, 60, 0.2)',
+        slark: '0 4px 14px rgba(198, 40, 40, 0.18)',
+        'slark-lg': '0 8px 30px rgba(198, 40, 40, 0.12)',
       },
       keyframes: {
         'home-intro-in': {

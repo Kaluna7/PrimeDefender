@@ -11,6 +11,7 @@ import {
   cloneBookToMonitorSize,
   MONITOR_BASE_SCALE,
 } from './homeBook3d.js';
+import { heroThemeCssVars } from './heroTheme.js';
 
 useGLTF.preload(MYBOOK_MODEL_URL);
 useGLTF.preload(MONITOR_MODEL_URL);
@@ -60,7 +61,7 @@ function BookCanvas({ bookPresentationOpen }) {
       <ambientLight intensity={0.65} />
       <hemisphereLight args={['#e8f8ff', '#060a10', 0.75]} />
       <directionalLight position={[5, 10, 8]} intensity={1.15} color="#ffffff" />
-      <pointLight position={[-4, 3, 5]} intensity={0.65} color="#22d3ee" />
+      <pointLight position={[-4, 3, 5]} intensity={0.65} color="#5eead4" />
       <Suspense fallback={null}>
         <BookPreview bookPresentationOpen={bookPresentationOpen} />
       </Suspense>
@@ -71,9 +72,11 @@ function BookCanvas({ bookPresentationOpen }) {
 /**
  * @param {object} props
  * @param {boolean} props.bookPresentationOpen — pose “terbuka” di header hanya setelah klik buku 3D di hero
+ * @param {import('./heroTheme.js').HERO_THEME_LIGHT} [props.theme]
  */
-export function GuidebookModal({ open, onClose, bookPresentationOpen = false, locale, t }) {
+export function GuidebookModal({ open, onClose, bookPresentationOpen = false, locale, t, theme }) {
   const guide = integrationGuide[locale] ?? integrationGuide.en;
+  const themeStyle = theme ? heroThemeCssVars(theme) : undefined;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -104,35 +107,77 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
     >
       <button
         type="button"
-        className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
+        className={`absolute inset-0 backdrop-blur-[2px] ${theme ? 'bg-black/60' : 'bg-slark-dark/50'}`}
         onClick={onClose}
         aria-label={t('home.guideModalClose')}
       />
-      <div className="relative z-[101] m-0 flex max-h-[min(92dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-cyan-800/50 bg-[#050a10] shadow-[0_-8px_48px_rgba(0,0,0,0.6)] sm:m-4 sm:rounded-2xl">
-        <div className="flex shrink-0 flex-col border-b border-cyan-900/50 sm:flex-row">
-          <div className="relative h-44 min-h-[176px] w-full shrink-0 overflow-hidden bg-gradient-to-br from-cyan-950/35 via-[#070d14] to-[#030508] sm:h-[min(260px,32vh)] sm:min-h-[200px] sm:w-[42%] sm:max-w-[280px]">
+      <div
+        className={`relative z-[101] m-0 flex max-h-[min(92dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border shadow-slark-lg sm:m-4 sm:rounded-2xl ${
+          theme
+            ? 'border-[var(--hero-border)] bg-[var(--hero-bg)]'
+            : 'border-slark-border bg-slark-bg'
+        }`}
+        style={themeStyle}
+      >
+        <div
+          className={`flex shrink-0 flex-col border-b sm:flex-row ${
+            theme ? 'border-[var(--hero-border)]' : 'border-slark-border'
+          }`}
+        >
+          <div
+            className={`relative h-44 min-h-[176px] w-full shrink-0 overflow-hidden sm:h-[min(260px,32vh)] sm:min-h-[200px] sm:w-[42%] sm:max-w-[280px] ${
+              theme
+                ? 'bg-gradient-to-br from-[var(--hero-card)] via-[var(--hero-bg)] to-[var(--hero-card)]'
+                : 'bg-gradient-to-br from-slark-card via-slark-bg to-slark-card'
+            }`}
+          >
             <BookCanvas bookPresentationOpen={bookPresentationOpen} />
           </div>
           <div className="flex flex-1 flex-col justify-center px-4 py-4 sm:py-5 sm:pr-6">
-            <h2 id="guidebook-title" className="font-cyber text-lg font-bold tracking-tight text-cyan-50 sm:text-xl">
+            <h2
+              id="guidebook-title"
+              className={`font-cyber text-lg font-bold tracking-tight sm:text-xl ${
+                theme ? 'text-[var(--hero-text)]' : 'text-slark-text'
+              }`}
+            >
               {guide.title}
             </h2>
-            <p className="mt-2 text-xs leading-relaxed text-cyan-600/95 sm:text-sm">{guide.subtitle}</p>
+            <p
+              className={`mt-2 text-xs leading-relaxed sm:text-sm ${
+                theme ? 'text-[var(--hero-muted)] opacity-95' : 'text-slark-muted/95'
+              }`}
+            >
+              {guide.subtitle}
+            </p>
           </div>
         </div>
 
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {guide.sections.map((section) => (
             <section key={section.h} className="mb-6 last:mb-0">
-              <h3 className="font-cyber text-sm font-semibold text-cyan-300/95">{section.h}</h3>
-              <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-relaxed text-cyan-100/88 sm:text-sm">
+              <h3
+                className={`font-cyber text-sm font-semibold ${
+                  theme ? 'text-[var(--hero-primary)] opacity-95' : 'text-slark-primary/95'
+                }`}
+              >
+                {section.h}
+              </h3>
+              <ul
+                className={`mt-2 list-disc space-y-2 pl-4 text-xs leading-relaxed sm:text-sm ${
+                  theme ? 'text-[var(--hero-text)] opacity-90' : 'text-slark-text/88'
+                }`}
+              >
                 {section.p.map((line, i) => (
-                  <li key={i} className="marker:text-cyan-600">
+                  <li key={i} className={theme ? 'marker:text-[var(--hero-muted)]' : 'marker:text-slark-muted'}>
                     {line.split('`').map((part, j) =>
                       j % 2 === 1 ? (
                         <code
                           key={j}
-                          className="rounded bg-cyan-950/80 px-1 py-0.5 font-mono text-[0.7rem] text-cyan-200 sm:text-[0.75rem]"
+                          className={`rounded px-1 py-0.5 font-mono text-[0.7rem] sm:text-[0.75rem] ${
+                            theme
+                              ? 'bg-[color-mix(in_srgb,var(--hero-card)_80%,transparent)] text-[var(--hero-primary)]'
+                              : 'bg-slark-card/80 text-slark-primary'
+                          }`}
                         >
                           {part}
                         </code>
@@ -147,10 +192,18 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
           ))}
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 border-t border-cyan-900/45 bg-[#030508]/95 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div
+          className={`flex shrink-0 flex-col gap-2 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${
+            theme ? 'border-[var(--hero-border)] bg-[var(--hero-card)]' : 'border-slark-border bg-slark-card'
+          }`}
+        >
           <Link
             to="/docs"
-            className="text-center font-cyber text-xs font-semibold uppercase tracking-wider text-cyan-400 underline-offset-4 hover:text-cyan-200 hover:underline"
+            className={`text-center font-cyber text-xs font-semibold uppercase tracking-wider underline-offset-4 hover:underline ${
+              theme
+                ? 'text-[var(--hero-muted)] hover:text-[var(--hero-primary)]'
+                : 'text-slark-muted hover:text-slark-primary'
+            }`}
             onClick={onClose}
           >
             {t('home.guideModalFullDocs')}
@@ -158,7 +211,11 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
           <button
             type="button"
             onClick={onClose}
-            className="font-cyber rounded-xl border border-cyan-700/60 bg-cyan-950/50 px-5 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-100 transition hover:border-cyan-500 hover:bg-cyan-900/40"
+            className={`font-cyber rounded-xl border px-5 py-2.5 text-xs font-bold uppercase tracking-[0.2em] transition ${
+              theme
+                ? 'border-[var(--hero-border)] bg-[var(--hero-bg)] text-[var(--hero-text)] hover:border-[var(--hero-primary)] hover:bg-[var(--hero-card)]'
+                : 'border-slark-border bg-slark-bg text-slark-text hover:border-slark-primary hover:bg-slark-card'
+            }`}
           >
             {t('home.guideModalClose')}
           </button>

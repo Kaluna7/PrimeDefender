@@ -23,7 +23,7 @@ export function buildThreatReadoutText(attack, labels = {}) {
   const hw = attack.id ? String(attack.id).replace(/-/g, '').slice(0, 12) : '—';
 
   const lines = [
-    `pd-src0   Link encap:PrimeDefender  HWaddr ${hw}`,
+    `pd-src0   Link encap:Slark  HWaddr ${hw}`,
     `          inet addr:${dash(attack.attackerIp)}  ${inetScope}`,
     `          geo: ${dash(attack.sourceLabel)}`,
     `          coords: ${fmtCoord(from?.lat, from?.lon)}  (WGS84)`,

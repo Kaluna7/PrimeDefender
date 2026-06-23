@@ -325,7 +325,7 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
         className="pointer-events-none absolute inset-0 z-10"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(34, 211, 238, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 211, 238, 0.06) 1px, transparent 1px)',
+            'linear-gradient(rgba(198, 40, 40, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(198, 40, 40, 0.04) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
           opacity: 0.32,
         }}
@@ -339,7 +339,7 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
       />
       <div ref={chartRef} className="absolute inset-0 z-[1] h-full w-full" aria-label="Cyber threat map" />
       {mapHint ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 right-2 z-20 rounded-lg border border-slate-200/80 bg-white/90 px-2 py-1.5 text-[10px] leading-snug text-slate-600 shadow-sm dark:border-slate-600/60 dark:bg-slate-950/90 dark:text-slate-400">
+        <p className="pointer-events-none absolute bottom-2 left-2 right-2 z-20 rounded-lg border border-slark-border bg-slark-bg/95 px-2 py-1.5 text-[10px] leading-snug text-slark-muted shadow-sm">
           {mapHint}
         </p>
       ) : null}

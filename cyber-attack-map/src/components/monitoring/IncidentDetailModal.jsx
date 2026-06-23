@@ -12,17 +12,17 @@ function dash(value) {
 
 function DetailItem({ label, value, mono = false }) {
   return (
-    <div className="rounded-xl border border-slate-200/90 bg-white/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/75">
-      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-500">{label}</p>
-      <p className={`mt-1 text-[12px] text-slate-800 dark:text-slate-100 ${mono ? 'font-mono' : ''}`}>{value}</p>
+    <div className="rounded-xl border border-slark-border bg-slark-bg px-3 py-2">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slark-muted">{label}</p>
+      <p className={`mt-1 text-[12px] text-slark-text ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>
   );
 }
 
 function DetailSection({ title, children }) {
   return (
-    <section className="rounded-2xl border border-slate-200/90 bg-slate-50/85 p-3 dark:border-slate-800 dark:bg-slate-900/55">
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-600 dark:text-cyan-300">{title}</h3>
+    <section className="rounded-2xl border border-slark-border bg-slark-card p-3">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-slark-primary">{title}</h3>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -117,17 +117,17 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
     >
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm dark:bg-black/70"
+        className="absolute inset-0 bg-slark-dark/40 backdrop-blur-sm"
         aria-label={t('incidentModal.close')}
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200/95 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200/90 px-4 py-3 dark:border-slate-800">
+      <div className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slark-border bg-slark-bg shadow-slark-lg">
+        <div className="flex items-start justify-between gap-3 border-b border-slark-border px-4 py-3">
           <div className="min-w-0">
-            <h2 id="incident-modal-title" className="font-cyber text-sm font-bold tracking-wide text-slate-900 dark:text-cyan-50">
+            <h2 id="incident-modal-title" className="font-cyber text-sm font-bold tracking-wide text-slark-text">
               {t('incidentModal.title')}
             </h2>
-            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{t('incidentModal.subtitle')}</p>
+            <p className="mt-1 text-[10px] text-slark-muted">{t('incidentModal.subtitle')}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className={`rounded border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${cat.badgeClass}`}>
@@ -136,14 +136,14 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
             <button
               type="button"
               onClick={handleExportPdf}
-              className="rounded-lg border border-emerald-400/60 bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-950/80 dark:text-emerald-100 dark:hover:bg-emerald-900"
+              className="rounded-lg border border-slark-primary/30 bg-slark-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
             >
               {t('incidentModal.exportPdf')}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slark-border px-2 py-1 text-xs text-slark-muted hover:bg-slark-card"
             >
               {t('incidentModal.close')}
             </button>
@@ -159,6 +159,10 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
                   <DetailItem label={t('incidentModal.region')} value={dash(attack.sourceLabel)} />
                   <DetailItem label={t('incidentModal.requestId')} value={dash(attack.requestId || attack.incidentId || attack.id)} mono />
                   <DetailItem label={t('incidentModal.time')} value={new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false })} />
+                  <DetailItem label={t('incidentModal.geoLocation')} value={dash(attack.geoMeta?.location || attack.sourceLabel)} />
+                  <DetailItem label={t('incidentModal.geoCoordinates')} value={dash(attack.geoMeta?.coordinates)} mono />
+                  <DetailItem label={t('incidentModal.geoAccuracy')} value={dash(attack.geoMeta?.accuracy)} mono />
+                  <DetailItem label={t('incidentModal.geoNote')} value={dash(attack.geoMeta?.note)} />
                 </div>
               </DetailSection>
 
@@ -193,13 +197,13 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
 
             <div className="space-y-4">
               <DetailSection title={t('feed.logTitle')}>
-                <pre className="thin-scrollbar max-h-[26rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slate-200/90 bg-slate-950 p-3 font-mono text-[10px] leading-relaxed text-cyan-100 dark:border-slate-700">
+                <pre className="thin-scrollbar max-h-[26rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slark-border bg-slark-dark p-3 font-mono text-[10px] leading-relaxed text-slark-bg">
                   {logText}
                 </pre>
               </DetailSection>
 
               <DetailSection title={t('incidentModal.technical')}>
-                <pre className="thin-scrollbar max-h-[18rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slate-200/90 bg-slate-50 p-3 font-mono text-[9px] leading-relaxed text-emerald-900 dark:border-slate-700 dark:bg-black/50 dark:text-emerald-400/95">
+                <pre className="thin-scrollbar max-h-[18rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slark-border bg-slark-card p-3 font-mono text-[9px] leading-relaxed text-slark-dark">
                   {readout}
                 </pre>
               </DetailSection>
@@ -214,12 +218,12 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slark-border bg-slark-card px-4 py-3">
           {onSendToAI && (
             <button
               type="button"
               onClick={onSendToAI}
-              className="rounded-lg border border-violet-400/60 bg-violet-600 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-violet-500 dark:border-violet-500/50 dark:bg-violet-950/80 dark:text-violet-100 dark:hover:bg-violet-900/80"
+              className="rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-slark-primary-hover"
             >
               {t('detail.sendToAI')}
             </button>
@@ -227,14 +231,14 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
           <button
             type="button"
             onClick={handleExportPdf}
-            className="rounded-lg border border-emerald-400/60 bg-emerald-600 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-950/80 dark:text-emerald-100 dark:hover:bg-emerald-900"
+            className="rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
           >
             {t('incidentModal.exportPdf')}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="rounded-lg border border-slark-border px-4 py-2 text-[11px] font-semibold text-slark-text hover:bg-slark-bg"
           >
             {t('incidentModal.close')}
           </button>

@@ -55,7 +55,7 @@ export const CATEGORY_STYLE = {
     markerSource: [186, 199, 214],
     markerTarget: [148, 163, 184],
     badgeClass:
-      'border-slate-500/50 bg-slate-950/80 text-slate-300 shadow-[0_0_8px_rgba(148,163,184,0.2)]',
+      'border-slark-border bg-slark-card text-slark-muted shadow-[0_0_8px_rgba(198,40,40,0.12)]',
   },
   [THREAT_CATEGORY.BOTNET]: {
     label: 'Botnet / C2',

@@ -17,8 +17,8 @@ VITE_SOCKET_URL=https://bridge.your-domain.com
 # Must match the URL where the bridge is reachable from the browser`,
 
   nodeFetch: `// Node.js 18+ — di server pelanggan
-const BRIDGE = process.env.PRIMEDEFENDER_BRIDGE_URL;
-const API_KEY = process.env.PRIMEDEFENDER_API_KEY; // dari Settings / POST /admin/api-keys
+const BRIDGE = process.env.SLARK_BRIDGE_URL;
+const API_KEY = process.env.SLARK_API_KEY; // dari Settings / POST /admin/api-keys
 
 async function reportIncident(event) {
   const body = {
@@ -48,7 +48,7 @@ async function reportIncident(event) {
 
   detectionExpress: `// Express — import dari folder bridge Anda (contoh path monorepo)
 import express from 'express';
-import { createSecurityDetectionMiddleware } from '../cyber-attack-map-server/detectionMiddleware.mjs';
+import { createSecurityDetectionMiddleware } from '../cyber-attack-map-server/middleware/detectionMiddleware.mjs';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -56,8 +56,8 @@ app.use(express.json({ limit: '32kb' }));
 
 app.use(
   createSecurityDetectionMiddleware({
-    bridgeIngestUrl: process.env.PRIMEDEFENDER_BRIDGE_URL + '/ingest',
-    apiKey: process.env.PRIMEDEFENDER_API_KEY,
+    bridgeIngestUrl: process.env.SLARK_BRIDGE_URL + '/ingest',
+    apiKey: process.env.SLARK_API_KEY,
     siteRegion: { lat: -6.2, lon: 106.85, label: 'Origin' },
     siteId: 'customer-site',
     ddos: { maxPerWindow: 100, windowMs: 10000 },
@@ -82,8 +82,8 @@ app.use(
 import os
 import requests
 
-BRIDGE = os.environ["PRIMEDEFENDER_BRIDGE_URL"].rstrip("/")
-API_KEY = os.environ["PRIMEDEFENDER_API_KEY"]
+BRIDGE = os.environ["SLARK_BRIDGE_URL"].rstrip("/")
+API_KEY = os.environ["SLARK_API_KEY"]
 
 def report_incident(payload: dict) -> None:
     headers = {"Content-Type": "application/json", "X-Api-Key": API_KEY}
@@ -164,12 +164,12 @@ export const integrationGuide = {
   en: {
     title: 'Integration guide',
     subtitle:
-      'After you purchase a plan, use this checklist to connect your middleware to PrimeDefender and see incidents on the monitoring dashboard.',
+      'After you purchase a plan, use this checklist to connect your middleware to Slark and see incidents on the monitoring dashboard.',
     sections: [
       {
         h: '1. What you receive from us',
         p: [
-          'Bridge base URL (HTTPS), e.g. `https://bridge.your-tenant.primedefender.io`.',
+          'Bridge base URL (HTTPS), e.g. `https://bridge.your-tenant.slark.io`.',
           'Per-customer API keys: set `ADMIN_SECRET` on the bridge, then use **Settings** in the dashboard or `POST /admin/api-keys` to mint `pd_…` keys. Customers send `X-Api-Key` on every `POST /ingest`.',
           'Optional legacy single token `INGEST_TOKEN` still works as `X-Ingest-Token` / `Authorization: Bearer`.',
           'Dashboard: set `VITE_SOCKET_URL` to your bridge. The threat map uses ECharts in the browser (no map API key).',
@@ -245,12 +245,12 @@ export const integrationGuide = {
   id: {
     title: 'Panduan integrasi',
     subtitle:
-      'Setelah membeli paket, gunakan checklist ini untuk menghubungkan middleware Anda ke PrimeDefender dan melihat insiden di dashboard monitoring.',
+      'Setelah membeli paket, gunakan checklist ini untuk menghubungkan middleware Anda ke Slark dan melihat insiden di dashboard monitoring.',
     sections: [
       {
         h: '1. Yang Anda terima dari kami',
         p: [
-          'URL dasar bridge (HTTPS), mis. `https://bridge.tenant.primedefender.io`.',
+          'URL dasar bridge (HTTPS), mis. `https://bridge.tenant.slark.io`.',
           'API key per pelanggan: set `ADMIN_SECRET` di bridge, lalu buat key lewat **Pengaturan** di dashboard atau `POST /admin/api-keys`. Pelanggan mengirim `X-Api-Key` pada setiap `POST /ingest`.',
           'Opsional: satu token lama `INGEST_TOKEN` tetap bisa dipakai sebagai `X-Ingest-Token` / Bearer.',
           'Dashboard: set `VITE_SOCKET_URL` ke bridge. Peta memakai ECharts di browser (tanpa kunci peta).',

@@ -38,9 +38,28 @@ export function cloneMeshMaterialsDeep(root) {
   });
 }
 
+/** Mesh GLB opaque — background/grid tidak tembus. */
+export function solidifyMeshMaterials(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.renderOrder = 1;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    mats.forEach((m) => {
+      if (!m) return;
+      m.transparent = false;
+      m.opacity = 1;
+      m.depthWrite = true;
+      m.depthTest = true;
+      if ('side' in m) m.side = THREE.FrontSide;
+      if ('alphaTest' in m) m.alphaTest = 0;
+    });
+  });
+}
+
 /** @param {THREE.Object3D} root */
 export function prepareBookMaterials(root) {
   root.updateMatrixWorld(true);
+  solidifyMeshMaterials(root);
   const cyan = new THREE.Color('#22d3ee');
   const tint = new THREE.Color('#a5f3fc');
   root.traverse((o) => {
@@ -49,7 +68,6 @@ export function prepareBookMaterials(root) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     mats.forEach((m) => {
       if (!m) return;
-      if ('side' in m) m.side = THREE.DoubleSide;
       if (m.emissive && typeof m.emissive.set === 'function') {
         m.emissive.copy(cyan);
       }
@@ -95,6 +113,7 @@ export function cloneBookToMonitorSize(bookScene, monitorScene) {
  */
 export function prepareCashMaterials(root) {
   root.updateMatrixWorld(true);
+  solidifyMeshMaterials(root);
   root.traverse((o) => {
     if (!o.isMesh) return;
     o.frustumCulled = false;

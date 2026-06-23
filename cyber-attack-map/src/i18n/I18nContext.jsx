@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { translate } from './translations.js';
 
-const STORAGE_KEY = 'prime-locale';
+const STORAGE_KEY = 'slark-locale';
 
 const I18nContext = createContext(null);
 

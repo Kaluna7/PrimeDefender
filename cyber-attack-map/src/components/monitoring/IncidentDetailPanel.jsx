@@ -21,10 +21,10 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
   if (!attack) {
     return (
       <section
-        className="flex min-h-[8rem] flex-col border-t border-slate-200/90 bg-slate-50/95 px-3 py-3 backdrop-blur-md dark:border-cyan-900/40 dark:bg-black/50"
+        className="flex min-h-[8rem] flex-col border-t border-slark-border bg-slark-card px-3 py-3"
         aria-label={t('detail.title')}
       >
-        <p className="text-center text-[10px] leading-relaxed text-slate-500 dark:text-cyan-700">{t('detail.selectHint')}</p>
+        <p className="text-center text-[10px] leading-relaxed text-slark-muted">{t('detail.selectHint')}</p>
       </section>
     );
   }
@@ -35,7 +35,7 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
   const hw = attack.id ? attack.id.replace(/-/g, '').slice(0, 12) : '—';
 
   const lines = [
-    `pd-src0   Link encap:PrimeDefender  HWaddr ${hw}`,
+    `pd-src0   Link encap:Slark  HWaddr ${hw}`,
     `          inet addr:${dash(attack.attackerIp)}  ${t('detail.inetScope')}`,
     `          geo: ${dash(attack.sourceLabel)}`,
     `          coords: ${fmtCoord(from?.lat, from?.lon)}  (WGS84)`,
@@ -48,11 +48,11 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
 
   return (
     <section
-      className="flex max-h-[min(50vh,22rem)] min-h-0 flex-col border-t border-slate-200/90 bg-white/95 backdrop-blur-md dark:border-cyan-900/40 dark:bg-black/60"
+      className="flex max-h-[min(50vh,22rem)] min-h-0 flex-col border-t border-slark-border bg-slark-bg"
       aria-label={t('detail.title')}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200/90 px-2 py-2 dark:border-cyan-900/35">
-        <h2 className="font-cyber text-[10px] font-bold uppercase tracking-[0.22em] text-slate-800 dark:text-cyan-200/95">
+      <div className="flex items-center justify-between gap-2 border-b border-slark-border px-2 py-2">
+        <h2 className="font-cyber text-[10px] font-bold uppercase tracking-[0.22em] text-slark-text">
           {t('detail.title')}
         </h2>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -65,7 +65,7 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
             <button
               type="button"
               onClick={onSendToAI}
-              className="rounded border border-violet-400/60 bg-violet-100 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-violet-900 hover:bg-violet-200/90 dark:border-violet-500/45 dark:bg-violet-950/50 dark:text-violet-200 dark:hover:bg-violet-950/80"
+              className="rounded border border-slark-primary/40 bg-slark-card px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-slark-primary hover:bg-slark-primary hover:text-white"
               title={t('detail.sendToAiHint')}
             >
               {t('detail.sendToAI')}
@@ -75,7 +75,7 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-cyan-600/40 px-1.5 py-0.5 font-mono text-[9px] text-cyan-800 hover:bg-cyan-50 dark:border-cyan-800/50 dark:text-cyan-500 dark:hover:bg-cyan-950/50"
+              className="rounded border border-slark-border px-1.5 py-0.5 font-mono text-[9px] text-slark-muted hover:bg-slark-card hover:text-slark-text"
             >
               {t('detail.close')}
             </button>
@@ -83,16 +83,16 @@ export function IncidentDetailPanel({ attack, onClose, onSendToAI }) {
         </div>
       </div>
       <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        <p className="mb-2 text-[8px] uppercase tracking-wider text-slate-500 dark:text-cyan-600">{t('detail.readoutCaption')}</p>
-        <pre className="whitespace-pre-wrap break-all font-mono text-[9px] leading-relaxed text-emerald-800 dark:text-emerald-400/95 dark:[text-shadow:0_0_8px_rgba(52,211,153,0.15)]">
+        <p className="mb-2 text-[8px] uppercase tracking-wider text-slark-muted">{t('detail.readoutCaption')}</p>
+        <pre className="whitespace-pre-wrap break-all font-mono text-[9px] leading-relaxed text-slark-dark">
           {lines.join('\n')}
         </pre>
         {!attack.attackerIp && (
-          <p className="mt-3 border-t border-amber-200/90 pt-2 text-[9px] leading-relaxed text-amber-800 dark:border-amber-900/30 dark:text-amber-600/90">
+          <p className="mt-3 border-t border-amber-200/90 pt-2 text-[9px] leading-relaxed text-amber-800">
             {t('detail.noIpHint')}
           </p>
         )}
-        <p className="mt-2 text-[8px] text-slate-500 dark:text-cyan-800">
+        <p className="mt-2 text-[8px] text-slark-muted">
           {new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', {
             hour12: false,
           })}

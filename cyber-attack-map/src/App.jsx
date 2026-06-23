@@ -1,14 +1,16 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell.jsx';
-import { HomePage } from './pages/HomePage.jsx';
-import { IntegrationDocsPage } from './pages/IntegrationDocsPage.jsx';
-import { MonitoringPage } from './pages/MonitoringPage.jsx';
-import { SettingsPage } from './pages/SettingsPage.jsx';
-import { ApiPurchasePage } from './pages/ApiPurchasePage.jsx';
+import { HomePage } from './pages/home/HomePage.jsx';
+import { IntegrationDocsPage } from './pages/docs/IntegrationDocsPage.jsx';
+import { MonitoringPage } from './pages/monitoring/MonitoringPage.jsx';
+import { SettingsPage } from './pages/account/SettingsPage.jsx';
+import { ApiPurchasePage } from './pages/account/ApiPurchasePage.jsx';
+import { SignInPage } from './pages/auth/SignInPage.jsx';
 
 export default function App() {
   return (
     <Routes>
+      <Route path="signin" element={<SignInPage />} />
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="monitoring" element={<MonitoringPage />} />

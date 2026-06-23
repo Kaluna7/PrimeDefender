@@ -7,6 +7,7 @@ export function formatAttackConfidence(value) {
 }
 
 export function buildAttackLogLines(attack) {
+  const geo = attack.geoMeta || {};
   return [
     `timestamp: ${new Date(attack.createdAt).toISOString()}`,
     `request_id: ${dash(attack.requestId || attack.incidentId || attack.id)}`,
@@ -14,6 +15,11 @@ export function buildAttackLogLines(attack) {
     'attacker:',
     `  ip: ${dash(attack.attackerIp)}`,
     `  geo: ${dash(attack.sourceLabel)}`,
+    '  geolocation:',
+    `    location: ${dash(geo.location || attack.sourceLabel)}`,
+    `    coordinates: ${dash(geo.coordinates)}`,
+    `    accuracy: ${dash(geo.accuracy)}`,
+    `    note: ${dash(geo.note)}`,
     '',
     'request:',
     `  method: ${dash(attack.method)}`,
@@ -59,5 +65,6 @@ export function summarizeAttackLog(attack) {
     detectType: dash(attack.detectType || attack.detection),
     responseStatus: dash(attack.responseStatus),
     mitigation: dash(attack.mitigation || attack.action),
+    geoLocation: dash(attack.geoMeta?.location || attack.sourceLabel),
   };
 }

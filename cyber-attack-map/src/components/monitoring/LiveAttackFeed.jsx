@@ -71,19 +71,19 @@ export function LiveAttackFeed({
 
   return (
     <section
-      className={`flex h-full min-h-0 flex-col border-l border-slate-200/90 bg-white/90 backdrop-blur-md dark:border-cyan-900/35 dark:bg-black/55 ${className}`}
+      className={`flex h-full min-h-0 flex-col border-l border-slark-border bg-slark-bg ${className}`}
       aria-label="Live attack feed"
     >
-      <div className="border-b border-slate-200/90 px-3 py-2.5 dark:border-cyan-900/40">
-        <h2 className="font-cyber text-[11px] font-bold uppercase tracking-[0.28em] text-slate-800 dark:text-cyan-200/95">
+      <div className="border-b border-slark-border px-3 py-2.5">
+        <h2 className="font-cyber text-[11px] font-bold uppercase tracking-[0.28em] text-slark-text">
           {t('feed.title')}
         </h2>
-        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-500 dark:text-cyan-600/90">{t('feed.subtitle')}</p>
+        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-slark-muted">{t('feed.subtitle')}</p>
       </div>
 
       <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {rows.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[11px] leading-relaxed text-slate-500 dark:text-cyan-700/90">
+          <p className="px-2 py-6 text-center text-[11px] leading-relaxed text-slark-muted">
             {emptyMessage}
           </p>
         ) : (
@@ -97,11 +97,11 @@ export function LiveAttackFeed({
               return (
                 <li
                   key={a.id}
-                  className={`rounded-md border bg-gradient-to-br from-white to-slate-50 px-2.5 py-2 shadow-sm dark:from-slate-950/90 dark:to-black/80 dark:shadow-[inset_0_1px_0_rgba(34,211,238,0.06)] ${
+                  className={`rounded-md border bg-slark-card px-2.5 py-2 shadow-sm ${
                     selected
-                      ? 'border-cyan-500 ring-1 ring-cyan-400/50 dark:border-cyan-400/70 dark:ring-cyan-500/40'
-                      : 'border-slate-200/95 dark:border-cyan-900/45'
-                  } ${onSelectAttack ? 'cursor-pointer transition hover:border-cyan-500/70 dark:hover:border-cyan-600/55' : ''}`}
+                      ? 'border-slark-primary ring-1 ring-slark-primary/30'
+                      : 'border-slark-border'
+                  } ${onSelectAttack ? 'cursor-pointer transition hover:border-slark-primary/70' : ''}`}
                   onClick={() => onSelectAttack?.(a)}
                   onKeyDown={(e) => {
                     if (onSelectAttack && (e.key === 'Enter' || e.key === ' ')) {
@@ -125,105 +125,109 @@ export function LiveAttackFeed({
                     </span>
                   </div>
 
-                  <div className="mt-2 rounded-md border border-rose-200/90 bg-gradient-to-r from-rose-50/95 to-white px-2 py-1.5 dark:border-rose-900/45 dark:from-rose-950/35 dark:to-slate-950/40">
-                    <p className="text-[8px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-400/95">
+                  <div className="mt-2 rounded-md border border-rose-200/90 bg-gradient-to-r from-rose-50/95 to-slark-bg px-2 py-1.5">
+                    <p className="text-[8px] font-bold uppercase tracking-wider text-rose-800">
                       {t('feed.attackerLabel')}
                     </p>
-                    <p className="mt-0.5 font-mono text-[10px] font-semibold text-slate-900 dark:text-rose-100">
+                    <p className="mt-0.5 font-mono text-[10px] font-semibold text-slark-text">
                       {a.attackerIp?.trim() ? a.attackerIp : t('feed.unknownIp')}
                     </p>
-                    <p className="mt-0.5 text-[9px] text-slate-600 dark:text-slate-400">
+                    <p className="mt-0.5 text-[9px] text-slark-muted">
                       {labelOrDash(a.sourceLabel)}
                     </p>
                   </div>
 
                   {(a.siteId || a.tenantId) && (
-                    <p className="mt-1.5 text-[9px] text-slate-500">
+                    <p className="mt-1.5 text-[9px] text-slark-muted">
                       {t('feed.customerSite')}{' '}
-                      <span className="font-mono text-slate-400">{a.siteId || a.tenantId}</span>
+                      <span className="font-mono text-slark-muted/80">{a.siteId || a.tenantId}</span>
                     </p>
                   )}
 
                   {(a.blocked || a.path) && (
-                    <p className="mt-1.5 rounded border border-emerald-300/80 bg-emerald-50/95 px-1.5 py-1 font-mono text-[9px] text-emerald-900 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-200/95">
-                      <span className="text-emerald-700 dark:text-emerald-500/90">{t('feed.blocked')}</span>
+                    <p className="mt-1.5 rounded border border-emerald-300/80 bg-emerald-50/95 px-1.5 py-1 font-mono text-[9px] text-emerald-900">
+                      <span className="text-emerald-700">{t('feed.blocked')}</span>
                       {a.method && a.path && (
                         <>
                           {' '}
-                          <span className="text-slate-500">{a.method}</span>{' '}
-                          <span className="text-cyan-800 dark:text-cyan-200/90">{a.path}</span>
+                          <span className="text-slark-muted">{a.method}</span>{' '}
+                          <span className="text-slark-dark">{a.path}</span>
                         </>
                       )}
                       {a.path && !a.method && (
-                        <span className="text-cyan-800 dark:text-cyan-200/90"> {a.path}</span>
+                        <span className="text-slark-dark"> {a.path}</span>
                       )}
                     </p>
                   )}
 
-                  <p className="mt-1.5 font-mono text-[10px] leading-snug text-slate-800 dark:text-cyan-100/95">
-                    <span className="text-cyan-700 dark:text-cyan-500/90">{labelOrDash(a.sourceLabel)}</span>
-                    <span className="mx-1 text-slate-400 dark:text-cyan-800">→</span>
-                    <span className="text-amber-800 dark:text-amber-100/90">{labelOrDash(a.targetLabel)}</span>
+                  <p className="mt-1.5 font-mono text-[10px] leading-snug text-slark-text">
+                    <span className="text-slark-dark">{labelOrDash(a.sourceLabel)}</span>
+                    <span className="mx-1 text-slark-muted">→</span>
+                    <span className="text-amber-800">{labelOrDash(a.targetLabel)}</span>
                   </p>
 
-                  <div className="mt-2 rounded-md border border-slate-200/90 bg-slate-50/95 p-2 dark:border-slate-800/70 dark:bg-slate-950/70">
+                  <div className="mt-2 rounded-md border border-slark-border bg-slark-bg p-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-slate-600 dark:text-cyan-500/85">
+                      <p className="font-mono text-[8px] font-bold uppercase tracking-wider text-slark-muted">
                         {t('feed.logTitle')}
                       </p>
-                      <span className="rounded border border-slate-300/80 bg-white/80 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      <span className="rounded border border-slark-border bg-slark-card px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-slark-muted">
                         {t('feed.openDetail')}
                       </span>
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px]">
-                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
-                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">ID</p>
-                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.requestId}</p>
+                      <div className="rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">ID</p>
+                        <p className="mt-0.5 truncate font-mono text-slark-text">{logSummary.requestId}</p>
                       </div>
-                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
-                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Detect</p>
-                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.detectType}</p>
+                      <div className="rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">Detect</p>
+                        <p className="mt-0.5 truncate font-mono text-slark-text">{logSummary.detectType}</p>
                       </div>
-                      <div className="col-span-2 rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
-                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Request</p>
-                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.request}</p>
+                      <div className="col-span-2 rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">Location</p>
+                        <p className="mt-0.5 truncate font-mono text-slark-text">{logSummary.geoLocation}</p>
                       </div>
-                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
-                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Response</p>
-                        <p className="mt-0.5 font-mono text-slate-700 dark:text-slate-200">{logSummary.responseStatus}</p>
+                      <div className="rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">Response</p>
+                        <p className="mt-0.5 font-mono text-slark-text">{logSummary.responseStatus}</p>
                       </div>
-                      <div className="rounded border border-slate-200/90 bg-white/80 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/80">
-                        <p className="text-[8px] uppercase tracking-wide text-slate-500 dark:text-slate-500">Action</p>
-                        <p className="mt-0.5 truncate font-mono text-slate-700 dark:text-slate-200">{logSummary.mitigation}</p>
+                      <div className="rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">Action</p>
+                        <p className="mt-0.5 truncate font-mono text-slark-text">{logSummary.mitigation}</p>
+                      </div>
+                      <div className="col-span-2 rounded border border-slark-border bg-slark-card px-2 py-1">
+                        <p className="text-[8px] uppercase tracking-wide text-slark-muted">Request</p>
+                        <p className="mt-0.5 truncate font-mono text-slark-text">{logSummary.request}</p>
                       </div>
                     </div>
                   </div>
 
                   {a.category === THREAT_CATEGORY.DDOS && (
-                    <div className="mt-2 space-y-1.5 border-t border-rose-200/90 pt-2 dark:border-rose-900/25">
+                    <div className="mt-2 space-y-1.5 border-t border-rose-200/90 pt-2">
                       {a.ddos ? (
                         <>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-rose-800 dark:text-rose-200/85">
-                            <span className="uppercase tracking-wider text-rose-600 dark:text-rose-400/80">DDoS</span>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-rose-800">
+                            <span className="uppercase tracking-wider text-rose-600">DDoS</span>
                             {a.ddos.vector && (
                               <>
-                                <span className="rounded bg-rose-100 px-1 py-0.5 font-mono text-rose-900 dark:bg-rose-950/60 dark:text-rose-100/90">
+                                <span className="rounded bg-rose-100 px-1 py-0.5 font-mono text-rose-900">
                                   {VECTOR_LABEL[a.ddos.vector] ?? a.ddos.vector}
                                 </span>
                               </>
                             )}
                             {typeof a.ddos.peakGbps === 'number' && (
                               <>
-                                <span className="text-slate-500">·</span>
-                                <span className="font-mono tabular-nums text-amber-800 dark:text-amber-200/90">
+                                <span className="text-slark-muted">·</span>
+                                <span className="font-mono tabular-nums text-amber-800">
                                   ~{a.ddos.peakGbps} Gbps
                                 </span>
                               </>
                             )}
                             {typeof a.ddos.packetsPerSec === 'number' && (
                               <>
-                                <span className="text-slate-500">·</span>
-                                <span className="font-mono tabular-nums text-cyan-800 dark:text-cyan-300/80">
+                                <span className="text-slark-muted">·</span>
+                                <span className="font-mono tabular-nums text-slark-primary">
                                   {formatPps(a.ddos.packetsPerSec)}
                                 </span>
                               </>
@@ -231,13 +235,13 @@ export function LiveAttackFeed({
                           </div>
                           {Array.isArray(a.ddos.dependencies) && a.ddos.dependencies.length > 0 && (
                             <div className="flex flex-wrap gap-1">
-                              <span className="text-[8px] uppercase tracking-wider text-slate-500">
+                              <span className="text-[8px] uppercase tracking-wider text-slark-muted">
                                 {t('feed.chain')}
                               </span>
                               {a.ddos.dependencies.map((dep, i) => (
                                 <span
                                   key={`${a.id}-d${i}`}
-                                  className="rounded border border-slate-300/90 bg-slate-100/90 px-1.5 py-0.5 font-mono text-[8px] text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/80 dark:text-slate-300/95"
+                                  className="rounded border border-slark-border bg-slark-card px-1.5 py-0.5 font-mono text-[8px] text-slark-text"
                                 >
                                   {dep}
                                 </span>
@@ -246,12 +250,12 @@ export function LiveAttackFeed({
                           )}
                         </>
                       ) : (
-                        <p className="text-[9px] text-rose-700 dark:text-rose-300/75">{t('feed.ddosNoMeta')}</p>
+                        <p className="text-[9px] text-rose-700">{t('feed.ddosNoMeta')}</p>
                       )}
                     </div>
                   )}
 
-                  <p className="mt-1.5 text-right font-mono text-[9px] text-slate-500 dark:text-cyan-700/90">
+                  <p className="mt-1.5 text-right font-mono text-[9px] text-slark-muted">
                     {formatTime(a.createdAt, locale)}
                   </p>
                 </li>
