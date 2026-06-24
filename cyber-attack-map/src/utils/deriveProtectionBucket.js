@@ -2,23 +2,30 @@
  * Map ingest event to MVP protection bucket (middleware sets `detection` or labels in targetLabel).
  * @returns {string | null} bucket id or null if tidak masuk kategori perlindungan
  */
+function bucketFromDetectionString(detection) {
+  if (typeof detection !== 'string' || !detection.length) return null;
+  const low = detection.toLowerCase();
+  if (low.startsWith('sqli')) return 'sqli';
+  if (low.startsWith('xss')) return 'xss';
+  if (low.startsWith('path_traversal')) return 'pathTraversal';
+  if (low.startsWith('file_inclusion')) return 'fileInclusion';
+  if (low.startsWith('cmd_injection')) return 'cmdInjection';
+  if (low.startsWith('auth_bypass')) return 'authBypass';
+  if (low === 'brute_force' || low.startsWith('brute')) return 'bruteForce';
+  if (low.startsWith('scanner')) return 'scanner';
+  if (low.startsWith('bot_activity')) return 'botActivity';
+  if (low.startsWith('suspicious_request')) return 'suspiciousRequest';
+  if (low.startsWith('bad_ua')) return 'suspiciousUa';
+  if (low === 'ddos_flood' || low.startsWith('ddos')) return 'ddos';
+  return null;
+}
+
 export function deriveProtectionBucket(attack) {
-  const d = attack.detection;
-  if (typeof d === 'string' && d.length) {
-    const low = d.toLowerCase();
-    if (low.startsWith('sqli')) return 'sqli';
-    if (low.startsWith('xss')) return 'xss';
-    if (low.startsWith('path_traversal')) return 'pathTraversal';
-    if (low.startsWith('file_inclusion')) return 'fileInclusion';
-    if (low.startsWith('cmd_injection')) return 'cmdInjection';
-    if (low.startsWith('auth_bypass')) return 'authBypass';
-    if (low === 'brute_force' || low.startsWith('brute')) return 'bruteForce';
-    if (low.startsWith('scanner')) return 'scanner';
-    if (low.startsWith('bot_activity')) return 'botActivity';
-    if (low.startsWith('suspicious_request')) return 'suspiciousRequest';
-    if (low.startsWith('bad_ua')) return 'suspiciousUa';
-    if (low === 'ddos_flood' || low.startsWith('ddos')) return 'ddos';
-  }
+  const fromDetection = bucketFromDetectionString(attack.detection);
+  if (fromDetection) return fromDetection;
+
+  const fromDetectType = bucketFromDetectionString(attack.detectType);
+  if (fromDetectType) return fromDetectType;
 
   const tl = String(attack.targetLabel || '');
   if (tl.includes('SQLi:')) return 'sqli';

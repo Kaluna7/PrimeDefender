@@ -1,8 +1,16 @@
 import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
 import { LandingHeader } from './LandingHeader.jsx';
 import { LandingFooter } from './LandingFooter.jsx';
 import { WhySlarkScrollSection } from './WhySlarkScrollSection.jsx';
+import { WhyDefenseSection } from './WhyDefenseSection.jsx';
+import { FlowSection } from './FlowSection.jsx';
+import { FaqSection } from './FaqSection.jsx';
+import { LandingAiChatFab } from './LandingAiChatFab.jsx';
+
+import numberVideo from '../../../assets/video/number.mp4';
+import mapVideo from '../../../assets/video/map.mp4';
 
 import { SLARK as C } from '../../../theme/slarkColors.js';
 
@@ -31,11 +39,68 @@ export function LandingPage({ onGetStarted }) {
     { type: 'alert', title: t('home.feature3Title'), body: t('home.feature3Body'), accent: C.primary },
   ];
 
+  const defenseFootnotes = useMemo(
+    () => [
+      { icon: 'shield', text: t('home.defenseFootnote1') },
+      { icon: 'target', text: t('home.defenseFootnote2') },
+      { icon: 'speed', text: t('home.defenseFootnote3') },
+    ],
+    [t],
+  );
+
+  const defenseCards = useMemo(
+    () => [
+      {
+        type: 'volume',
+        title: t('home.defense1Title'),
+        body: t('home.defense1Body'),
+        badge: t('home.defense1Badge'),
+        highlight: t('home.defense1Highlight'),
+        videoSrc: numberVideo,
+      },
+      {
+        type: 'downtime',
+        title: t('home.defense2Title'),
+        body: t('home.defense2Body'),
+        badge: t('home.defense2Badge'),
+        highlight: t('home.defense2Highlight'),
+      },
+      {
+        type: 'trust',
+        title: t('home.defense3Title'),
+        body: t('home.defense3Body'),
+        badge: t('home.defense3Badge'),
+        highlight: t('home.defense3Highlight'),
+      },
+      {
+        type: 'compliance',
+        title: t('home.defense4Title'),
+        body: t('home.defense4Body'),
+        badge: t('home.defense4Badge'),
+        highlight: t('home.defense4Highlight'),
+      },
+      {
+        type: 'speed',
+        title: t('home.defense5Title'),
+        body: t('home.defense5Body'),
+        badge: t('home.defense5Badge'),
+        highlight: t('home.defense5Highlight'),
+        videoSrc: mapVideo,
+      },
+    ],
+    [t],
+  );
+
   const flowSteps = [
-    t('home.flowStep1'),
-    t('home.flowStep2'),
-    t('home.flowStep3'),
-    t('home.flowStep4'),
+    { type: 'deploy', title: t('home.flowStep1Title'), body: t('home.flowStep1Body') },
+    { type: 'shield', title: t('home.flowStep2Title'), body: t('home.flowStep2Body') },
+    {
+      type: 'ingest',
+      title: t('home.flowStep3Title'),
+      body: t('home.flowStep3Body'),
+      link: { href: '/docs', label: t('home.flowStep3GuideLink') },
+    },
+    { type: 'map', title: t('home.flowStep4Title'), body: t('home.flowStep4Body') },
   ];
 
   const tiers = [
@@ -62,10 +127,24 @@ export function LandingPage({ onGetStarted }) {
     },
   ];
 
+  const faqItems = useMemo(
+    () => [
+      { id: 'ingest', question: t('home.faq1Q'), answer: t('home.faq1A') },
+      { id: 'setup', question: t('home.faq2Q'), answer: t('home.faq2A') },
+      { id: 'privacy', question: t('home.faq3Q'), answer: t('home.faq3A') },
+      { id: 'plans', question: t('home.faq4Q'), answer: t('home.faq4A') },
+      { id: 'billing', question: t('home.faq5Q'), answer: t('home.faq5A') },
+      { id: 'support', question: t('home.faq6Q'), answer: t('home.faq6A') },
+    ],
+    [t],
+  );
+
   return (
-    <div className="relative min-h-full w-full bg-[#FFFFFF] text-[#111827]">
+    <div className="relative min-h-full w-full text-[#111827]" style={{ backgroundColor: C.bg }}>
+      <LandingHeader onGetStarted={onGetStarted} />
+
       <div className="relative flex min-h-[100dvh] flex-col">
-        <LandingHeader onGetStarted={onGetStarted} />
+        <div className="h-16 shrink-0 sm:h-[4.25rem]" aria-hidden />
 
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <div
@@ -144,45 +223,24 @@ export function LandingPage({ onGetStarted }) {
         features={features}
       />
 
-      <section id="flow" className="relative px-4 py-20 sm:px-6">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading eyebrow={t('home.introEyebrow')} title={t('home.sectionFlow')} />
-          <div className="mt-12 space-y-4">
-            {flowSteps.map((step, index) => (
-              <div
-                key={step}
-                className="flex gap-4 rounded-2xl border p-5 sm:gap-6 sm:p-6"
-                style={{ borderColor: C.border, backgroundColor: C.card }}
-              >
-                <div className="flex shrink-0 flex-col items-center">
-                  <span
-                    className="font-cyber flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-bold"
-                    style={{ borderColor: `${C.primary}40`, backgroundColor: `${C.primary}0d`, color: C.primary }}
-                  >
-                    {index + 1}
-                  </span>
-                  {index < flowSteps.length - 1 && (
-                    <span className="mt-2 hidden h-full w-px sm:block" style={{ backgroundColor: C.border }} />
-                  )}
-                </div>
-                <div>
-                  <p
-                    className="text-[10px] font-semibold uppercase tracking-[0.25em]"
-                    style={{ color: C.primary }}
-                  >
-                    {t('home.introStepLabel')} {index + 1}
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed sm:text-base" style={{ color: C.textMuted }}>
-                    {step}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <WhyDefenseSection
+        eyebrow={t('home.defenseEyebrow')}
+        titleBefore={t('home.defenseTitleBefore')}
+        titleHighlight={t('home.defenseTitleHighlight')}
+        titleAfter={t('home.defenseTitleAfter')}
+        subtitle={t('home.defenseSubtitle')}
+        footnotes={defenseFootnotes}
+        cards={defenseCards}
+      />
 
-      <section id="pricing" className="relative px-4 py-20 sm:px-6">
+      <FlowSection
+        eyebrow={t('home.flowEyebrow')}
+        title={t('home.sectionFlow')}
+        subtitle={t('home.flowSubtitle')}
+        steps={flowSteps}
+      />
+
+      <section id="pricing" className="relative px-4 py-20 sm:px-6" style={{ backgroundColor: C.card }}>
         <div className="mx-auto max-w-6xl">
           <SectionHeading eyebrow={t('home.ctaApiPurchase')} title={t('home.sectionPricing')} />
           <div className="mt-12 grid gap-5 lg:grid-cols-3">
@@ -194,10 +252,10 @@ export function LandingPage({ onGetStarted }) {
                   tier.popular
                     ? {
                         borderColor: C.primary,
-                        backgroundColor: C.card,
+                        backgroundColor: C.bg,
                         boxShadow: '0 4px 24px rgba(198,40,40,0.1)',
                       }
-                    : { borderColor: C.border, backgroundColor: C.card }
+                    : { borderColor: C.border, backgroundColor: C.bg }
                 }
               >
                 {tier.popular && (
@@ -231,7 +289,18 @@ export function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      <FaqSection
+        eyebrow={t('home.faqEyebrow')}
+        title={t('home.faqTitle')}
+        subtitle={t('home.faqSubtitle')}
+        items={faqItems}
+        docsFootnote={t('home.faqDocsFootnote')}
+        docsLink={t('home.faqDocsLink')}
+      />
+
       <LandingFooter onGetStarted={onGetStarted} />
+
+      <LandingAiChatFab />
     </div>
   );
 }

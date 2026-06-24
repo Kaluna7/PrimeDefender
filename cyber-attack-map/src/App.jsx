@@ -4,7 +4,8 @@ import { HomePage } from './pages/home/HomePage.jsx';
 import { IntegrationDocsPage } from './pages/docs/IntegrationDocsPage.jsx';
 import { MonitoringPage } from './pages/monitoring/MonitoringPage.jsx';
 import { SettingsPage } from './pages/account/SettingsPage.jsx';
-import { ApiPurchasePage } from './pages/account/ApiPurchasePage.jsx';
+import { ApiPurchasePage } from './pages/payment/ApiPurchasePage.jsx';
+import { PaymentCheckoutPage } from './pages/payment/PaymentCheckoutPage.jsx';
 import { SignInPage } from './pages/auth/SignInPage.jsx';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="monitoring" element={<MonitoringPage />} />
         <Route path="purchase" element={<ApiPurchasePage />} />
+        <Route path="purchase/checkout/:planId" element={<PaymentCheckoutPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="docs" element={<IntegrationDocsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

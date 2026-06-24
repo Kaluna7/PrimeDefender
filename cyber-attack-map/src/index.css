@@ -87,3 +87,164 @@ body,
 .landing-page-scroll {
   background: var(--slark-bg);
 }
+
+/* Why Slark — finale blur belt (glass shards merge) */
+.why-slark-finale-wrap {
+  isolation: isolate;
+}
+
+.why-slark-finale-belt-wrap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3.5rem;
+  right: -3.5rem;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.why-slark-finale-belt-blur {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(248, 250, 252, 0.44) 50%,
+    rgba(255, 255, 255, 0.52) 100%
+  );
+  pointer-events: none;
+}
+
+.why-slark-finale-shard {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  backdrop-filter: blur(3px) saturate(1.1);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(248, 250, 252, 0.62) 48%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 2px 12px rgba(15, 23, 42, 0.06);
+  will-change: transform, opacity;
+}
+
+.why-slark-finale-cracks {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.why-slark-finale-cracks line {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 0.35;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px rgba(198, 40, 40, 0.35));
+}
+
+.why-slark-finale-belt-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-top: 1.5px solid rgba(198, 40, 40, 0.42);
+  border-bottom: 1.5px solid rgba(198, 40, 40, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 6px 28px rgba(15, 23, 42, 0.07);
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .why-slark-finale-belt-wrap {
+    left: -6rem;
+    right: -6rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .why-slark-finale-belt-wrap {
+    left: -8.5rem;
+    right: -8.5rem;
+  }
+}
+
+/* Defense scroll cards — card 0 visible before GSAP init */
+.defense-scroll-card-anim[data-defense-index="0"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Why strong defense matters — grid line background */
+.defense-section-bg {
+  background-color: #0f172a;
+  isolation: isolate;
+}
+
+.defense-echart-map {
+  z-index: 1;
+  opacity: 1;
+}
+
+.defense-echart-canvas {
+  min-height: 100%;
+  min-width: 100%;
+}
+
+.defense-echart-canvas canvas {
+  display: block;
+}
+
+.defense-bg-grid-fine {
+  z-index: 2;
+  opacity: 0.85;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.defense-bg-grid-major {
+  z-index: 3;
+  opacity: 0.8;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.11) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+.defense-bg-grid-accent {
+  z-index: 4;
+  background-image:
+    linear-gradient(rgba(198, 40, 40, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(198, 40, 40, 0.14) 1px, transparent 1px);
+  background-size: 240px 240px;
+  opacity: 0.45;
+  mask-image: radial-gradient(ellipse 92% 88% at 50% 42%, black 25%, transparent 100%);
+}
+
+.defense-bg-grid-vignette {
+  z-index: 5;
+  background:
+    radial-gradient(ellipse 100% 70% at 50% 0%, rgba(198, 40, 40, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 85% at 50% 100%, rgba(0, 0, 0, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08) 0%, transparent 28%, transparent 72%, rgba(15, 23, 42, 0.1) 100%);
+}
+
+@media (min-width: 1024px) {
+  .defense-panel-right {
+    clip-path: polygon(0% 0%, 7% 50%, 0% 100%, 100% 100%, 100% 0%);
+    min-height: 100%;
+  }
+}

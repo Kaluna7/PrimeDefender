@@ -30,6 +30,7 @@ import {
 } from './auth/auth.mjs';
 import {
   confirmOrderPayment,
+  createCoreChargeTransaction,
   createSnapTransaction,
   getPublicPaymentConfig,
   handleMidtransNotification,
@@ -425,6 +426,46 @@ const httpServer = createServer(async (req, res) => {
         email: session.email,
         name: session.name || session.email,
         planId: body.planId,
+        paymentMethod: body.paymentMethod,
+        frontendUrl: FRONTEND_URL,
+      });
+      if (!result.ok) {
+        sendJson(res, 400, result);
+        return;
+      }
+      sendJson(res, 200, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/payment/charge' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    if (!midtransConfigured()) {
+      sendJson(res, 503, { ok: false, error: 'midtrans_not_configured' });
+      return;
+    }
+    if (persistenceRequired()) {
+      sendJson(res, 503, {
+        ok: false,
+        error: 'mongo_disabled',
+        hint: 'Set MONGODB_DISABLED=false and run MongoDB for subscriptions.',
+      });
+      return;
+    }
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await createCoreChargeTransaction({
+        email: session.email,
+        name: session.name || session.email,
+        planId: body.planId,
+        paymentMethod: body.paymentMethod,
         frontendUrl: FRONTEND_URL,
       });
       if (!result.ok) {

@@ -14,43 +14,18 @@ export async function fetchPaymentConfig() {
   return res.json();
 }
 
-export async function createSnapCheckout(planId) {
-  const res = await fetch(`${BRIDGE_URL.replace(/\/$/, '')}/payment/snap`, {
+export async function createPaymentCharge(planId, paymentMethod) {
+  const res = await fetch(`${BRIDGE_URL.replace(/\/$/, '')}/payment/charge`, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(),
-    body: JSON.stringify({ planId }),
+    body: JSON.stringify({ planId, paymentMethod }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { ok: false, error: data.error || 'checkout_failed', hint: data.hint };
+    return { ok: false, error: data.error || 'checkout_failed', hint: data.hint, detail: data.detail };
   }
   return data;
-}
-
-export function loadMidtransSnap({ clientKey, isProduction }) {
-  return new Promise((resolve, reject) => {
-    if (typeof window !== 'undefined' && window.snap) {
-      resolve(window.snap);
-      return;
-    }
-    const src = isProduction
-      ? 'https://app.midtrans.com/snap/snap.js'
-      : 'https://app.sandbox.midtrans.com/snap/snap.js';
-    const existing = document.querySelector(`script[data-midtrans-snap="${src}"]`);
-    if (existing) {
-      existing.addEventListener('load', () => resolve(window.snap));
-      existing.addEventListener('error', reject);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.setAttribute('data-client-key', clientKey);
-    script.setAttribute('data-midtrans-snap', src);
-    script.onload = () => resolve(window.snap);
-    script.onerror = () => reject(new Error('snap_script_failed'));
-    document.body.appendChild(script);
-  });
 }
 
 export async function confirmPaymentOrder(orderId) {

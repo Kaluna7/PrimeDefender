@@ -3,10 +3,153 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SLARK as C } from '../../../theme/slarkColors.js';
 import { createWhySlarkGlobe } from './whySlarkGlobe.js';
+import { bindLandingScrollProxy } from '../../../utils/landingScrollProxy.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const ENTRANCE_SHARE = 0.1;
+
+/** Glass shards — each flies in from a corner/edge, then merges into unified blur. */
+const SLARK_GLASS_SHARDS = [
+  { clip: 'polygon(0% 0%, 44% 0%, 26% 46%, 0% 58%)', ox: 78, oy: -56, rot: 28, delay: 0 },
+  { clip: 'polygon(44% 0%, 100% 0%, 100% 36%, 64% 40%, 26% 46%)', ox: 64, oy: -44, rot: 18, delay: 0.05 },
+  { clip: 'polygon(26% 46%, 64% 40%, 56% 66%, 38% 56%, 0% 58%, 0% 100%, 20% 100%)', ox: -72, oy: -50, rot: -24, delay: 0.08 },
+  { clip: 'polygon(64% 40%, 100% 36%, 100% 70%, 76% 62%, 56% 66%)', ox: 82, oy: 38, rot: 22, delay: 0.03 },
+  { clip: 'polygon(38% 56%, 56% 66%, 76% 62%, 50% 100%, 20% 100%)', ox: -68, oy: 54, rot: -16, delay: 0.12 },
+  { clip: 'polygon(56% 66%, 76% 62%, 100% 70%, 100% 100%, 50% 100%)', ox: 74, oy: 58, rot: 20, delay: 0.07 },
+  { clip: 'polygon(26% 46%, 38% 56%, 50% 100%, 20% 100%, 0% 58%)', ox: -76, oy: 22, rot: -20, delay: 0.14 },
+  { clip: 'polygon(64% 40%, 56% 66%, 38% 56%, 26% 46%)', ox: 12, oy: -62, rot: 10, delay: 0.1 },
+];
+
+function clamp01(v) {
+  return Math.min(1, Math.max(0, v));
+}
+
+function easeOut(t) {
+  return 1 - (1 - clamp01(t)) ** 2.2;
+}
+
+/**
+ * Belt scroll: shards start scattered from corners → fly inward → fuse into blur.
+ * @param {HTMLElement} beltEl
+ * @param {number} p scene progress 0–1
+ * @param {{ isMobile: boolean, reducedMotion: boolean }} opts
+ */
+function applySlarkGlassBelt(beltEl, p, { isMobile, reducedMotion }) {
+  const beltT = clamp01((p - 0.82) / 0.18);
+  const beltVisible = p >= 0.82;
+  const shardScale = isMobile ? 0.72 : 1;
+  const scatterMax = isMobile ? 1.15 : 1.35;
+
+  gsap.set(beltEl, {
+    visibility: beltVisible ? 'visible' : 'hidden',
+    opacity: beltVisible ? 1 : 0,
+    zIndex: 0,
+  });
+
+  const solid = beltEl.querySelector('[data-belt-solid]');
+  const cracks = beltEl.querySelector('.why-slark-finale-cracks');
+  const frame = beltEl.querySelector('.why-slark-finale-belt-frame');
+  const shards = beltEl.querySelectorAll('[data-glass-shard]');
+
+  if (reducedMotion) {
+    const on = beltVisible && beltT > 0.35;
+    shards.forEach((el) => {
+      gsap.set(el, { opacity: 0, visibility: 'hidden', x: 0, y: 0, rotation: 0, scale: 1 });
+    });
+    if (cracks) gsap.set(cracks, { opacity: 0 });
+    if (solid) gsap.set(solid, { opacity: on ? 1 : 0, visibility: on ? 'visible' : 'hidden' });
+    if (frame) gsap.set(frame, { opacity: on ? 1 : 0 });
+    return;
+  }
+
+  const appearT = clamp01(beltT / 0.08);
+  const mergeT = clamp01((beltT - 0.08) / 0.5);
+  const fuseT = clamp01((beltT - 0.55) / 0.45);
+  const fuseEased = easeOut(fuseT);
+
+  const shardShow = easeOut(appearT);
+  const shardAlpha = shardShow * (1 - fuseEased);
+  const solidAlpha = fuseEased * clamp01((mergeT - 0.38) / 0.62);
+  let crackAlpha = 0;
+
+  shards.forEach((el) => {
+    const delay = Number.parseFloat(el.dataset.shardDelay || '0');
+    const ox = Number.parseFloat(el.dataset.shardOx || '0') * shardScale;
+    const oy = Number.parseFloat(el.dataset.shardOy || '0') * shardScale;
+    const rot = Number.parseFloat(el.dataset.shardRot || '0');
+
+    const localMergeT = clamp01((mergeT - delay * 0.22) / Math.max(0.001, 1 - delay * 0.22));
+    const localMergeEased = easeOut(localMergeT);
+    const scatter = scatterMax * (1 - localMergeEased);
+
+    crackAlpha = Math.max(crackAlpha, shardShow * (1 - localMergeEased * 0.9));
+
+    gsap.set(el, {
+      opacity: beltVisible ? shardAlpha : 0,
+      visibility: beltVisible && shardAlpha > 0.02 ? 'visible' : 'hidden',
+      x: ox * scatter,
+      y: oy * scatter,
+      rotation: rot * scatter,
+      scale: 0.78 + (1 - scatter) * 0.22,
+      transformOrigin: 'center center',
+      force3D: true,
+    });
+  });
+
+  crackAlpha *= 1 - fuseEased;
+
+  if (cracks) gsap.set(cracks, { opacity: beltVisible ? crackAlpha * 0.95 : 0 });
+  if (solid) {
+    gsap.set(solid, {
+      opacity: beltVisible ? solidAlpha : 0,
+      visibility: beltVisible && solidAlpha > 0.02 ? 'visible' : 'hidden',
+      scale: 0.97 + solidAlpha * 0.03,
+      transformOrigin: 'center center',
+    });
+  }
+  if (frame) gsap.set(frame, { opacity: beltVisible ? solidAlpha : 0 });
+}
+
+function SlarkFinaleGlassBelt({ beltRef }) {
+  return (
+    <div ref={beltRef} className="why-slark-finale-belt-wrap" aria-hidden>
+      <div className="why-slark-finale-belt-blur" data-belt-solid />
+      {SLARK_GLASS_SHARDS.map((shard, i) => (
+        <div
+          key={i}
+          data-glass-shard
+          data-shard-delay={shard.delay}
+          data-shard-ox={shard.ox}
+          data-shard-oy={shard.oy}
+          data-shard-rot={shard.rot}
+          className="why-slark-finale-shard"
+          style={{ clipPath: shard.clip }}
+        />
+      ))}
+      <svg
+        className="why-slark-finale-cracks"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        <line x1="44" y1="0" x2="26" y2="46" />
+        <line x1="44" y1="0" x2="64" y2="40" />
+        <line x1="26" y1="46" x2="64" y2="40" />
+        <line x1="64" y1="40" x2="100" y2="36" />
+        <line x1="26" y1="46" x2="0" y2="58" />
+        <line x1="26" y1="46" x2="38" y2="56" />
+        <line x1="38" y1="56" x2="56" y2="66" />
+        <line x1="56" y1="66" x2="76" y2="62" />
+        <line x1="76" y1="62" x2="100" y2="70" />
+        <line x1="38" y1="56" x2="20" y2="100" />
+        <line x1="56" y1="66" x2="50" y2="100" />
+        <line x1="76" y1="62" x2="100" y2="100" />
+      </svg>
+      <div className="why-slark-finale-belt-frame" />
+    </div>
+  );
+}
 
 function FeatureIcon({ type }) {
   if (type === 'map') {
@@ -36,7 +179,7 @@ const FeatureCard = forwardRef(function FeatureCard({ feature, side }, ref) {
   return (
     <article
       ref={ref}
-      className={`why-slark-card pointer-events-none absolute z-20 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF]/95 p-4 shadow-[0_12px_40px_rgba(17,24,39,0.12)] backdrop-blur-sm sm:w-72 sm:p-5 ${
+      className={`why-slark-card pointer-events-none absolute z-20 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-[0_16px_48px_rgba(17,24,39,0.18)] sm:w-72 sm:p-5 ${
         side === 'left'
           ? 'left-3 top-[52%] -translate-y-1/2 sm:left-[8%] md:left-[10%]'
           : 'right-3 top-[52%] -translate-y-1/2 sm:right-[8%] md:right-[10%]'
@@ -79,6 +222,8 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
   const headingRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const sceneWrapRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const finaleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const finaleTextRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const finaleBeltRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const scrollHintRef = useRef(/** @type {HTMLParagraphElement | null} */ (null));
   const cardsRef = useRef(/** @type {(HTMLElement | null)[]} */ ([]));
   const staticGridRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -100,33 +245,31 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
     const isMobile = window.innerWidth < 640;
     const globe = createWhySlarkGlobe(canvas, { isMobile });
 
-    if (scrollerEl) {
-      ScrollTrigger.scrollerProxy(scrollerEl, {
-        scrollTop(value) {
-          if (arguments.length) {
-            scrollerEl.scrollTop = value;
-          }
-          return scrollerEl.scrollTop;
-        },
-        getBoundingClientRect() {
-          return {
-            top: 0,
-            left: 0,
-            width: scrollerEl.clientWidth,
-            height: scrollerEl.clientHeight,
-          };
-        },
-      });
-    }
+    bindLandingScrollProxy(scrollerEl);
 
     const cards = cardsRef.current.filter(Boolean);
     const finale = finaleRef.current;
+    const finaleText = finaleTextRef.current;
+    const finaleBelt = finaleBeltRef.current;
     const heading = headingRef.current;
     const sceneWrap = sceneWrapRef.current;
     const scrollHintEl = scrollHintRef.current;
 
     gsap.set(cards, { autoAlpha: 0, x: 0 });
-    if (finale) gsap.set(finale, { autoAlpha: 0, scale: 0.88, y: 20 });
+    if (finale) gsap.set(finale, { autoAlpha: 0, visibility: 'hidden' });
+    if (finaleText) gsap.set(finaleText, { opacity: 0, visibility: 'hidden', scale: 0.94, y: 0, zIndex: 20 });
+    if (finaleBelt) {
+      finaleBelt.querySelectorAll('[data-glass-shard]').forEach((el) => {
+        gsap.set(el, { opacity: 0, visibility: 'hidden', x: 0, y: 0, rotation: 0, scale: 1 });
+      });
+      const solid = finaleBelt.querySelector('[data-belt-solid]');
+      if (solid) gsap.set(solid, { opacity: 0, visibility: 'hidden', scale: 0.97 });
+      const cracks = finaleBelt.querySelector('.why-slark-finale-cracks');
+      if (cracks) gsap.set(cracks, { opacity: 0 });
+      const frame = finaleBelt.querySelector('.why-slark-finale-belt-frame');
+      if (frame) gsap.set(frame, { opacity: 0 });
+    }
+    if (finaleBelt) gsap.set(finaleBelt, { opacity: 0, visibility: 'hidden' });
     if (heading) gsap.set(heading, { autoAlpha: 0 });
     if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: 0 });
 
@@ -159,18 +302,34 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       });
 
       if (heading) {
-        const headAlpha = p < 0.12 ? 1 : Math.max(0, 1 - (p - 0.12) / 0.1);
+        const headAlpha = p < 0.18 ? 1 : Math.max(0, 1 - (p - 0.18) / 0.14);
         gsap.set(heading, { autoAlpha: headAlpha });
       }
 
       if (finale) {
-        const finaleIn = Math.max(0, (p - 0.8) / 0.12);
-        const eased = 1 - (1 - Math.min(1, finaleIn)) ** 3;
+        const inFinale = p >= 0.7;
         gsap.set(finale, {
-          autoAlpha: eased,
-          scale: 0.88 + eased * 0.12,
-          y: 20 * (1 - eased),
+          autoAlpha: inFinale ? 1 : 0,
+          visibility: inFinale ? 'visible' : 'hidden',
         });
+      }
+
+      if (finaleText) {
+        const textT = Math.max(0, (p - 0.7) / 0.12);
+        const textEased = 1 - (1 - Math.min(1, textT)) ** 3;
+        const textVisible = p >= 0.7 && textEased > 0.01;
+        gsap.set(finaleText, {
+          opacity: textVisible ? textEased : 0,
+          visibility: textVisible ? 'visible' : 'hidden',
+          scale: 0.94 + textEased * 0.06,
+          y: 0,
+          zIndex: 20,
+          force3D: true,
+        });
+      }
+
+      if (finaleBelt) {
+        applySlarkGlassBelt(finaleBelt, p, { isMobile, reducedMotion });
       }
 
       if (scrollHintEl) {
@@ -185,6 +344,9 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       globe.setProgress(0);
       if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: eased });
       if (heading) gsap.set(heading, { autoAlpha: eased });
+      if (finale) gsap.set(finale, { autoAlpha: 0, visibility: 'hidden' });
+      if (finaleText) gsap.set(finaleText, { opacity: 0, visibility: 'hidden', scale: 0.94 });
+      if (finaleBelt) applySlarkGlassBelt(finaleBelt, -1, { isMobile, reducedMotion });
     }
 
     function scrollLen() {
@@ -240,7 +402,6 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       window.removeEventListener('resize', onResize);
       window.clearTimeout(resizeTimer);
       mainSt.kill();
-      if (scrollerEl) ScrollTrigger.scrollerProxy(scrollerEl, null);
       section.style.height = '';
       sticky.style.height = '';
       globe.dispose();
@@ -248,7 +409,7 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
   }, [features]);
 
   return (
-    <section id="features" ref={sectionRef} className="relative">
+    <section id="features" ref={sectionRef} className="relative" style={{ backgroundColor: C.bg }}>
       <div ref={staticGridRef} hidden className="px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-6xl text-center">
           <p className="font-cyber text-[10px] uppercase tracking-[0.4em]" style={{ color: C.primary }}>
@@ -262,7 +423,8 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
           {features.map((feature) => (
             <article
               key={feature.title}
-              className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-6"
+              className="rounded-2xl border p-6"
+              style={{ borderColor: C.border, backgroundColor: C.bg }}
             >
               <div
                 className="inline-flex rounded-xl border p-3"
@@ -287,16 +449,23 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
 
       <div
         ref={stickyRef}
-        className="sticky top-0 z-10 flex w-full items-center justify-center overflow-hidden bg-[#FFFFFF]"
+        className="sticky top-0 z-10 flex w-full items-center justify-center overflow-hidden"
+        style={{ backgroundColor: C.bg }}
       >
         <div
           ref={headingRef}
-          className="pointer-events-none absolute left-0 right-0 top-[10%] z-10 px-4 text-center sm:top-[12%]"
+          className="pointer-events-none absolute left-0 right-0 top-[8%] z-20 px-4 text-center sm:top-[10%]"
         >
-          <p className="font-cyber text-[10px] uppercase tracking-[0.4em]" style={{ color: C.primary }}>
+          <p
+            className="font-cyber text-[10px] uppercase tracking-[0.4em] sm:text-xs"
+            style={{ color: C.primary, textShadow: '0 1px 12px rgba(255,255,255,0.95)' }}
+          >
             {eyebrow}
           </p>
-          <h2 className="font-cyber mt-3 text-xl font-bold sm:text-3xl" style={{ color: C.text }}>
+          <h2
+            className="font-cyber mt-3 text-xl font-bold sm:text-3xl md:text-4xl"
+            style={{ color: C.text, textShadow: '0 2px 24px rgba(255,255,255,0.9)' }}
+          >
             {title}
           </h2>
         </div>
@@ -318,28 +487,40 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
 
         <div
           ref={finaleRef}
-          className="pointer-events-none absolute inset-x-0 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center px-4 text-center"
-          style={{ opacity: 0, visibility: 'hidden' }}
+          className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4"
         >
-          <p className="font-cyber text-[10px] uppercase tracking-[0.55em] text-[#C62828]/80">
-            {eyebrow}
-          </p>
-          <p
-            className="font-cyber mt-3 text-5xl font-bold tracking-[0.2em] text-[#111827] sm:text-7xl"
-            style={{ textShadow: '0 0 48px rgba(198,40,40,0.25)' }}
-          >
-            {brandName}
-          </p>
-          {finaleTagline && (
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-[#6B7280] sm:text-base">
-              {finaleTagline}
-            </p>
-          )}
+          <div className="why-slark-finale-wrap relative inline-block min-w-[min(82vw,22rem)] max-w-[min(92vw,40rem)] text-center sm:min-w-[min(78vw,32rem)] md:min-w-[min(72vw,38rem)]">
+            <SlarkFinaleGlassBelt beltRef={finaleBeltRef} />
+            <div ref={finaleTextRef} className="relative z-20 px-6 py-3 sm:px-10 sm:py-4">
+              <h3
+                className="font-cyber text-4xl font-bold tracking-[0.18em] sm:text-6xl md:text-7xl"
+                style={{
+                  color: '#C62828',
+                  textShadow:
+                    '0 0 20px rgba(255,255,255,0.95), 0 2px 16px rgba(198,40,40,0.35)',
+                }}
+              >
+                {brandName}
+              </h3>
+              {finaleTagline ? (
+                <p
+                  className="mt-2.5 text-xs font-medium leading-relaxed sm:mt-3 sm:text-sm"
+                  style={{
+                    color: '#1F2937',
+                    textShadow: '0 0 12px rgba(255,255,255,0.9)',
+                  }}
+                >
+                  {finaleTagline}
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <p
           ref={scrollHintRef}
-          className="pointer-events-none absolute bottom-6 left-0 right-0 z-10 text-center text-[10px] uppercase tracking-[0.3em] text-[#9CA3AF]"
+          className="pointer-events-none absolute bottom-6 left-0 right-0 z-20 text-center text-[10px] font-medium uppercase tracking-[0.3em] text-[#4B5563] sm:text-xs"
+          style={{ textShadow: '0 1px 8px rgba(255,255,255,0.9)' }}
           aria-hidden
         >
           {scrollHint || 'Scroll'}
