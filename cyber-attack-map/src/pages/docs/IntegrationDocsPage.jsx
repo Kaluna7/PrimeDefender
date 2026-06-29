@@ -1,104 +1,102 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nContext.jsx';
-import { CodeBlock } from '../../components/ui/CodeBlock.jsx';
-import { CODE_SAMPLES, integrationGuide } from '../../content/integrationGuide.js';
+import { IntegrationDocsHeader } from './IntegrationDocsHeader.jsx';
+import { IntegrationDocsSidebar } from './IntegrationDocsSidebar.jsx';
+import { IntegrationGuideSections } from './IntegrationGuideSections.jsx';
+import { integrationGuide } from './integrationGuide.js';
 
 export function IntegrationDocsPage() {
   const { locale, t } = useI18n();
   const doc = integrationGuide[locale] || integrationGuide.en;
+  const [stack, setStack] = useState(/** @type {import('./integrationGuide.js').IntegrationStack} */ ('python'));
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     document.title = `${t('brand.name')} – ${t('nav.docs')}`;
   }, [t, locale]);
 
-  return (
-    <div className="thin-scrollbar h-full overflow-y-auto bg-slark-bg px-4 py-10 pb-24 dark:bg-slark-dark">
-      <div className="mx-auto max-w-3xl">
-        <p className="font-cyber text-xs uppercase tracking-[0.35em] text-slark-primary">{t('brand.name')}</p>
-        <h1 className="font-cyber mt-2 text-2xl font-bold text-slark-text dark:text-white md:text-3xl">{doc.title}</h1>
-        <p className="mt-4 text-sm leading-relaxed text-slark-muted">{doc.subtitle}</p>
+  useEffect(() => {
+    if (!menuOpen) return undefined;
 
-        <div className="mt-8 flex flex-wrap gap-3">
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const close = () => {
+      if (mq.matches) setMenuOpen(false);
+    };
+    mq.addEventListener('change', close);
+    return () => mq.removeEventListener('change', close);
+  }, []);
+
+  const closeMenu = () => setMenuOpen(false);
+
+  return (
+    <div className="thin-scrollbar h-full overflow-y-auto bg-slark-bg dark:bg-slark-dark">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-60 lg:flex-col lg:overflow-hidden lg:border-r lg:border-slark-border lg:bg-slark-card/40 lg:px-6 lg:py-10 dark:lg:bg-slark-dark/50 xl:w-64">
+        <IntegrationDocsSidebar doc={doc} stack={stack} onStackChange={setStack} />
+      </aside>
+
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-slark-text/30 lg:hidden dark:bg-black/50"
+          aria-label={doc.menuLabel}
+          onClick={closeMenu}
+        />
+      ) : null}
+
+      <aside
+        id="docs-mobile-nav"
+        className={`fixed inset-y-0 left-0 z-50 w-[min(85vw,16rem)] overflow-y-auto border-r border-slark-border bg-slark-card/95 px-4 py-8 transition-transform duration-300 dark:border-slark-border/50 dark:bg-slark-dark/95 lg:hidden ${
+          menuOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        }`}
+        aria-hidden={!menuOpen}
+      >
+        <IntegrationDocsSidebar
+          doc={doc}
+          stack={stack}
+          onStackChange={setStack}
+          onNavigate={closeMenu}
+          className="!h-auto"
+        />
+      </aside>
+
+      <div className="min-w-0 lg:ml-60 xl:ml-64">
+        <IntegrationDocsHeader
+          doc={doc}
+          stack={stack}
+          menuOpen={menuOpen}
+          onMenuToggle={() => setMenuOpen((open) => !open)}
+        />
+
+        <main className="w-full px-4 py-8 pb-20 sm:py-10 sm:pb-24 lg:px-10 lg:pb-24">
+          <p className="max-w-4xl text-[15px] leading-relaxed text-slark-muted sm:text-base">{doc.subtitle}</p>
+
           <Link
             to="/monitoring"
-            className="rounded-xl bg-slark-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-slark-primary-hover"
+            className="mt-5 inline-flex rounded-xl bg-slark-primary px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-slark-primary-hover sm:mt-6 sm:py-2.5 sm:text-xs"
           >
             {t('nav.monitoring')}
           </Link>
-          <Link
-            to="/"
-            className="rounded-xl border border-slark-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slark-muted transition hover:border-slark-primary hover:text-slark-primary"
-          >
-            {t('nav.home')}
-          </Link>
-        </div>
 
-        <article className="mt-12 space-y-12">
-          {doc.sections.map((section) => (
-            <section key={section.h}>
-              <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slark-primary">
-                {section.h}
-              </h2>
-              <div className="mt-4 space-y-3 text-sm leading-relaxed text-slark-muted">
-                {section.p.map((para, i) => (
-                  <p
-                    key={i}
-                    className="[&_code]:rounded [&_code]:bg-slark-card [&_code]:px-1 [&_code]:font-mono [&_code]:text-xs [&_code]:text-slark-dark dark:[&_code]:bg-slark-dark/60 dark:[&_code]:text-slark-primary"
-                    dangerouslySetInnerHTML={{
-                      __html: para
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                        .replace(/`([^`]+)`/g, '<code>$1</code>')
-                        .replace(/\n/g, '<br />'),
-                    }}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </article>
-
-        <div className="mt-14 space-y-8">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slark-primary">
-            {locale === 'id' ? 'Contoh variabel lingkungan' : 'Environment examples'}
-          </h2>
-          <CodeBlock title="Bridge (.env)" code={CODE_SAMPLES.envBridge} />
-          <CodeBlock title="Dashboard (.env)" code={CODE_SAMPLES.envFrontend} />
-        </div>
-
-        <div className="mt-14 space-y-8">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slark-primary">
-            {locale === 'id' ? 'Contoh kode di server pelanggan' : 'Customer server code samples'}
-          </h2>
-          <CodeBlock title="Node.js (fetch)" code={CODE_SAMPLES.nodeFetch} />
-          <CodeBlock
-            title={
-              locale === 'id'
-                ? 'Express — MVP (7 deteksi)'
-                : 'Express — MVP (7 detections)'
-            }
-            code={CODE_SAMPLES.detectionExpress}
-          />
-          <CodeBlock title="Python (requests)" code={CODE_SAMPLES.python} />
-          <CodeBlock
-            title={
-              locale === 'id'
-                ? 'FastAPI — proxy / ngrok (GeoIP akurat)'
-                : 'FastAPI — proxy / ngrok (accurate GeoIP)'
-            }
-            code={CODE_SAMPLES.fastapiProxy}
-          />
-          <CodeBlock title="cURL" code={CODE_SAMPLES.curl} />
-        </div>
-
-        <div className="mt-14">
-          <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slark-primary">
-            {locale === 'id' ? 'Skema payload (referensi)' : 'Payload schema (reference)'}
-          </h2>
-          <div className="mt-4">
-            <CodeBlock code={CODE_SAMPLES.payloadExample} />
-          </div>
-        </div>
+          <article className="mt-8 w-full sm:mt-10">
+            <IntegrationGuideSections
+              variant="page"
+              locale={locale}
+              stack={stack}
+              onStackChange={setStack}
+              hideStackPicker
+            />
+          </article>
+        </main>
       </div>
     </div>
   );

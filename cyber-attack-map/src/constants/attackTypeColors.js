@@ -46,6 +46,35 @@ function rgbaFromHex(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/** Row + dot styles for protection bucket lists (monitoring sidebar). */
+export function getAttackTypePanelStyles(key, { hot = false } = {}) {
+  const color = ATTACK_TYPE_LINE_HEX[key] ?? ATTACK_TYPE_LINE_HEX.suspiciousRequest;
+
+  return {
+    color,
+    dot: {
+      backgroundColor: color,
+      boxShadow: `0 0 8px ${rgbaFromHex(color, hot ? 0.75 : 0.45)}`,
+      '--protect-dot-glow': rgbaFromHex(color, 0.85),
+      '--protect-dot-glow-soft': rgbaFromHex(color, 0.25),
+    },
+    ping: {
+      backgroundColor: color,
+    },
+    row: {
+      borderColor: rgbaFromHex(color, hot ? 0.55 : 0.32),
+      backgroundColor: rgbaFromHex(color, hot ? 0.14 : 0.06),
+      boxShadow: hot ? `0 0 12px ${rgbaFromHex(color, 0.22)}` : undefined,
+    },
+    label: {
+      color: hot ? color : undefined,
+    },
+    count: {
+      color: hot ? color : undefined,
+    },
+  };
+}
+
 function lightenHex(hex, amount = 0.42) {
   const [r, g, b] = hexToRgb(hex);
   const mix = (c) => Math.round(c + (255 - c) * amount);

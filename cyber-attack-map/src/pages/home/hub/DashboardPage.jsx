@@ -7,7 +7,7 @@ import { HUB_THEME } from './hubTheme.js';
 export function DashboardPage() {
   return (
     <div
-      className="flex min-h-[100dvh] w-full flex-1 flex-col overflow-hidden"
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{ backgroundColor: HUB_THEME.bg, color: HUB_THEME.text }}
     >
       <HomeInteractiveHero initialView="command" theme={HUB_THEME} />

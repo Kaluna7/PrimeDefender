@@ -3,7 +3,6 @@
 export const THREAT_CATEGORY = {
   DDOS: 'ddos',
   INTRUSION: 'intrusion',
-  MALWARE: 'malware',
   BOTNET: 'botnet',
   /** Use when upstream does not set `category` — no fabricated threat type. */
   UNKNOWN: 'unknown',
@@ -18,7 +17,6 @@ export const DDOS_VECTOR = {
 /** Human labels + arc colors [srcR, srcG, srcB] → [tgtR, tgtG, tgtB] for map layers */
 export const CATEGORY_STYLE = {
   [THREAT_CATEGORY.DDOS]: {
-    label: 'DDoS',
     shortLabel: 'DDoS',
     arcSource: [255, 70, 90],
     arcTarget: [255, 40, 160],
@@ -28,8 +26,7 @@ export const CATEGORY_STYLE = {
       'border-rose-500/50 bg-rose-950/80 text-rose-200 shadow-[0_0_12px_rgba(251,113,133,0.35)]',
   },
   [THREAT_CATEGORY.INTRUSION]: {
-    label: 'Intrusion',
-    shortLabel: 'Intr',
+    shortLabel: 'Intrusion',
     arcSource: [250, 204, 21],
     arcTarget: [234, 179, 8],
     markerSource: [253, 224, 71],
@@ -37,19 +34,8 @@ export const CATEGORY_STYLE = {
     badgeClass:
       'border-amber-500/50 bg-amber-950/80 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.25)]',
   },
-  [THREAT_CATEGORY.MALWARE]: {
-    label: 'Malware',
-    shortLabel: 'Mal',
-    arcSource: [168, 85, 247],
-    arcTarget: [192, 132, 252],
-    markerSource: [196, 181, 253],
-    markerTarget: [147, 51, 234],
-    badgeClass:
-      'border-violet-500/50 bg-violet-950/80 text-violet-100 shadow-[0_0_10px_rgba(167,139,250,0.3)]',
-  },
   [THREAT_CATEGORY.UNKNOWN]: {
-    label: 'Unspecified',
-    shortLabel: '?',
+    shortLabel: 'Unspecified',
     arcSource: [148, 163, 184],
     arcTarget: [100, 116, 139],
     markerSource: [186, 199, 214],
@@ -58,8 +44,7 @@ export const CATEGORY_STYLE = {
       'border-slark-border bg-slark-card text-slark-muted shadow-[0_0_8px_rgba(198,40,40,0.12)]',
   },
   [THREAT_CATEGORY.BOTNET]: {
-    label: 'Botnet / C2',
-    shortLabel: 'C2',
+    shortLabel: 'Botnet',
     arcSource: [52, 211, 153],
     arcTarget: [16, 185, 129],
     markerSource: [110, 231, 183],
@@ -68,6 +53,19 @@ export const CATEGORY_STYLE = {
       'border-emerald-500/50 bg-emerald-950/80 text-emerald-100 shadow-[0_0_10px_rgba(52,211,153,0.28)]',
   },
 };
+
+/** @type {Record<string, string>} */
+export const THREAT_CATEGORY_I18N = {
+  [THREAT_CATEGORY.DDOS]: 'threatCategory.ddos',
+  [THREAT_CATEGORY.INTRUSION]: 'threatCategory.intrusion',
+  [THREAT_CATEGORY.BOTNET]: 'threatCategory.botnet',
+  [THREAT_CATEGORY.UNKNOWN]: 'threatCategory.unknown',
+};
+
+/** @param {string | undefined} category */
+export function threatCategoryLabelKey(category) {
+  return THREAT_CATEGORY_I18N[category] || THREAT_CATEGORY_I18N[THREAT_CATEGORY.UNKNOWN];
+}
 
 export const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
 

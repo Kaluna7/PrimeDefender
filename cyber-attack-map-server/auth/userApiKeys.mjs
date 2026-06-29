@@ -15,10 +15,27 @@ export async function ensureUserApiKey(email) {
   if (!coll) return null;
   const normalized = String(email).toLowerCase().trim();
   const doc = await coll.findOne({ email: normalized });
-  if (doc?.apiKey?.plain && doc?.apiKey?.hash) {
+  if (doc?.apiKey?.plain) {
+    let hash = doc.apiKey.hash;
+    if (!hash) {
+      hash = hashApiKey(doc.apiKey.plain);
+      const prefix = doc.apiKey.prefix || `${doc.apiKey.plain.slice(0, 12)}…`;
+      await coll.updateOne(
+        { email: normalized },
+        { $set: { 'apiKey.hash': hash, 'apiKey.prefix': prefix, updatedAt: Date.now() } }
+      );
+    }
     return {
       apiKey: doc.apiKey.plain,
-      prefix: doc.apiKey.prefix,
+      prefix: doc.apiKey.prefix || `${doc.apiKey.plain.slice(0, 12)}…`,
+      createdAt: doc.apiKey.createdAt,
+      existing: true,
+    };
+  }
+  if (doc?.apiKey?.hash) {
+    return {
+      apiKey: null,
+      prefix: doc.apiKey.prefix || 'pd_••••••••••••',
       createdAt: doc.apiKey.createdAt,
       existing: true,
     };
@@ -38,6 +55,52 @@ export async function ensureUserApiKey(email) {
     { upsert: true }
   );
   return { apiKey, prefix, createdAt, existing: false };
+}
+
+/**
+ * @param {string} email
+ * @returns {Promise<string | null>}
+ */
+export async function getUserApiKeyPlain(email) {
+  const coll = await usersColl();
+  if (!coll) return null;
+  const normalized = String(email).toLowerCase().trim();
+  const doc = await coll.findOne({ email: normalized });
+  return doc?.apiKey?.plain || null;
+}
+
+/**
+ * Ganti API key user dengan yang baru (langganan harus aktif).
+ * @param {string} email
+ */
+export async function regenerateUserApiKey(email) {
+  const coll = await usersColl();
+  if (!coll) return null;
+  const normalized = String(email).toLowerCase().trim();
+  const doc = await coll.findOne({ email: normalized });
+  if (!doc) return null;
+
+  const now = Date.now();
+  const sub = doc.subscription;
+  const active = sub?.expiresAt > now && (!sub.status || sub.status === 'active');
+  if (!active) return null;
+
+  const apiKey = `pd_${randomBytes(24).toString('base64url')}`;
+  const hash = hashApiKey(apiKey);
+  const prefix = `${apiKey.slice(0, 12)}…`;
+  const createdAt = now;
+
+  await coll.updateOne(
+    { email: normalized },
+    {
+      $set: {
+        apiKey: { id: randomUUID(), hash, plain: apiKey, prefix, createdAt },
+        updatedAt: createdAt,
+      },
+    }
+  );
+
+  return { apiKey, prefix, createdAt };
 }
 
 /**

@@ -55,10 +55,6 @@ export function describeAttackActivity(attack, locale) {
     return isId ? 'Aktivitas intrusi (akses / eksploitasi)' : 'Intrusion activity (access / exploitation attempt)';
   }
 
-  if (cat === THREAT_CATEGORY.MALWARE) {
-    return isId ? 'Distribusi atau eksekusi malware' : 'Malware delivery or execution';
-  }
-
   if (cat === THREAT_CATEGORY.BOTNET) {
     if (det.includes('scanner'))
       return isId ? 'Scanner otomatis / enumerasi path sensitif' : 'Automated scanner / sensitive path enumeration';

@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import { AttackMap } from '../../components/monitoring/AttackMap.jsx';
 import { LiveAttackFeed } from '../../components/monitoring/LiveAttackFeed.jsx';
 import { ThreatMetricsPanel } from '../../components/monitoring/ThreatMetricsPanel.jsx';
+import { ThreatDailyChart } from '../../components/monitoring/ThreatDailyChart.jsx';
+import { ThreatDailyCommentary } from '../../components/monitoring/ThreatDailyCommentary.jsx';
 import { ProtectionThreatPanel } from '../../components/monitoring/ProtectionThreatPanel.jsx';
 import { IncidentDetailPanel } from '../../components/monitoring/IncidentDetailPanel.jsx';
+import { HistoryTabView } from './history/HistoryTabView.jsx';
 import { IncidentDetailModal } from '../../components/monitoring/IncidentDetailModal.jsx';
 import { ThreatAIChatPanel } from '../../components/monitoring/ThreatAIChatPanel.jsx';
 import { connectAttackSocket } from '../../services/socket';
@@ -15,18 +19,15 @@ import {
   fetchRecentIncidents,
 } from '../../services/bridgeIncidents.js';
 import { fetchAuthStatus } from '../../services/auth.js';
-import { THREAT_CATEGORY } from '../../constants/threatCategories.js';
 import { normalizeAttackPayload } from '../../utils/normalizeAttack.js';
 import { fingerprintForEntry } from '../../utils/attackDedupe.js';
 import { EXPECTED_BRIDGE_VERSION } from '../../bridgeConstants.js';
 import { buildRandomDemoPayload } from '../../data/demoThreatRoutes.js';
 import {
-  getNotificationPermission,
-  notificationsSupported,
   notifySecurityIncident,
-  requestNotificationPermission,
 } from '../../utils/browserNotify.js';
 import { MAX_LIVE_ATTACKS } from '../../constants/monitoringLimits.js';
+import { ProfileMenu } from '../../components/layout/ProfileMenu.jsx';
 
 export const MAX_ATTACKS = MAX_LIVE_ATTACKS;
 
@@ -41,7 +42,7 @@ function getBridgeAdminSecret() {
   try {
     const env = import.meta.env.VITE_BRIDGE_ADMIN_SECRET;
     if (typeof env === 'string' && env.trim()) return env.trim();
-    return (localStorage.getItem('pd-admin-secret') || '').trim();
+    return (localStorage.getItem('slark-admin-secret') || localStorage.getItem('pd-admin-secret') || '').trim();
   } catch {
     return (import.meta.env.VITE_BRIDGE_ADMIN_SECRET || '').trim();
   }
@@ -117,34 +118,27 @@ function useBridgeHandshake(enabled) {
   return state;
 }
 
-function bridgeStatusDot(socketEnabled, bridgeState, socketConnected) {
-  if (!socketEnabled) return 'bg-slark-muted';
-  if (bridgeState === 'checking') return 'animate-pulse bg-amber-400';
-  if (bridgeState === 'bad') return 'bg-slark-primary';
-  if (socketConnected) return 'bg-emerald-500';
-  return 'animate-pulse bg-amber-400';
-}
-
 /** Keys for left rail — each tab shows a different panel set */
 const MONITORING_TAB = {
-  STATUS: 'status',
   MAP: 'map',
   HISTORY: 'history',
   ATTACKER: 'attacker',
   INTEL: 'intel',
-  READOUT: 'readout',
   ASSISTANT: 'assistant',
 };
 
 function MonitoringSectionNav({ t, activeTab, onSelectTab, bridgeBannerVisible }) {
+  const navRef = useRef(/** @type {HTMLElement | null} */ (null));
+
+  const handleNavPointerLeave = () => {
+    const nav = navRef.current;
+    const active = document.activeElement;
+    if (nav && active instanceof HTMLElement && nav.contains(active)) {
+      active.blur();
+    }
+  };
+
   const items = [
-    {
-      id: MONITORING_TAB.STATUS,
-      labelKey: 'navStatus',
-      icon: (
-        <path d="M4 12a8 8 0 1 1 16 0 8 8 0 0 1-16 0zm8-6a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 2a1 1 0 0 1 1 1v4.5l2.5 1.5a1 1 0 1 1-1 1.73L11 15.2V9a1 1 0 0 1 1-1z" />
-      ),
-    },
     {
       id: MONITORING_TAB.MAP,
       labelKey: 'navMonitoring',
@@ -174,13 +168,6 @@ function MonitoringSectionNav({ t, activeTab, onSelectTab, bridgeBannerVisible }
       ),
     },
     {
-      id: MONITORING_TAB.READOUT,
-      labelKey: 'navReadout',
-      icon: (
-        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-      ),
-    },
-    {
       id: MONITORING_TAB.ASSISTANT,
       labelKey: 'navAssistant',
       icon: (
@@ -196,9 +183,24 @@ function MonitoringSectionNav({ t, activeTab, onSelectTab, bridgeBannerVisible }
 
   return (
     <nav
+      ref={navRef}
       aria-label={t('monitoring.sidebarNav')}
-      className={`group/nav fixed left-0 z-40 flex w-[3.25rem] flex-col gap-0.5 overflow-hidden border-r border-slark-border bg-slark-bg py-2 shadow-sm transition-[width] duration-300 ease-out hover:w-52 focus-within:w-52 ${railPosition}`}
+      onMouseLeave={handleNavPointerLeave}
+      className={`group/nav fixed left-0 z-40 flex w-16 min-h-0 flex-col gap-0.5 overflow-hidden border-r border-slate-700/60 bg-slark-dark py-2 text-slate-200 shadow-lg ring-1 ring-black/20 transition-[width] duration-300 ease-out hover:w-72 ${railPosition}`}
     >
+      <Link
+        to="/"
+        onClick={(e) => e.currentTarget.blur()}
+        className="mb-1 flex w-full items-center justify-center px-2 py-2.5 outline-none transition hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-slark-primary/40"
+        title={t('brand.name')}
+      >
+        <span className="font-cyber text-[8px] font-bold uppercase tracking-[0.1em] text-slark-primary transition-all duration-300 ease-out group-hover/nav:text-[11px] group-hover/nav:tracking-[0.22em]">
+          {t('brand.name')}
+        </span>
+      </Link>
+      <div className="mx-2 mb-1 shrink-0 border-b border-slate-600/50" aria-hidden />
+
+      <div className="thin-scrollbar-dark flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
       {items.map(({ id, labelKey, icon }) => {
         const label = t(`monitoring.${labelKey}`);
         const isActive = activeTab === id;
@@ -207,28 +209,41 @@ function MonitoringSectionNav({ t, activeTab, onSelectTab, bridgeBannerVisible }
             key={id}
             type="button"
             title={label}
+            aria-label={label}
             aria-current={isActive ? 'page' : undefined}
-            onClick={() => onSelectTab(id)}
+            onClick={(e) => {
+              onSelectTab(id);
+              e.currentTarget.blur();
+            }}
             className={`flex w-full items-center gap-2 rounded-r-lg py-2 pl-2 pr-1 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-slark-primary/40 ${
-              isActive
-                ? 'bg-slark-card text-slark-primary ring-1 ring-slark-primary/25'
-                : 'text-slark-muted hover:bg-slark-card'
+              isActive ? 'text-slark-primary' : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
             }`}
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slark-border bg-slark-card text-slark-dark"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                isActive
+                  ? 'border-slark-primary/45 bg-slark-primary/15 text-slark-primary'
+                  : 'border-slate-600/50 bg-white/[0.04] text-slate-400 hover:border-slate-500/60 hover:text-slate-200'
+              }`}
               aria-hidden
             >
               <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                 {icon}
               </svg>
             </span>
-            <span className="min-w-0 max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-slark-text opacity-0 transition-all duration-300 ease-out group-hover/nav:max-w-[11rem] group-hover/nav:opacity-100 group-focus-within/nav:max-w-[11rem] group-focus-within/nav:opacity-100">
+            <span
+              className={`min-w-0 max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] opacity-0 transition-all duration-300 ease-out group-hover/nav:max-w-[15rem] group-hover/nav:opacity-100 ${
+                isActive ? 'text-slark-primary' : 'text-slate-200'
+              }`}
+            >
               {label}
             </span>
           </button>
         );
       })}
+      </div>
+
+      <ProfileMenu variant="sidebar" navDark />
     </nav>
   );
 }
@@ -237,13 +252,11 @@ export function MonitoringPage() {
   const { t, locale } = useI18n();
   const [attacks, setAttacks] = useState([]);
   const [historyAttacks, setHistoryAttacks] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyFetchError, setHistoryFetchError] = useState(false);
   const [selectedAttackId, setSelectedAttackId] = useState(null);
   /** Popup detail when user clicks feed row or map arc/point */
   const [modalAttack, setModalAttack] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
-  const [notifyPerm, setNotifyPerm] = useState(() => getNotificationPermission());
   const threatAiRef = useRef(null);
   const ownerUserIdRef = useRef(/** @type {string | null} */ (null));
   const [activeTab, setActiveTab] = useState(MONITORING_TAB.MAP);
@@ -353,21 +366,7 @@ export function MonitoringPage() {
     return attacks.filter((a) => now - a.createdAt < 60000).length;
   }, [attacks]);
 
-  const ddosLive = useMemo(
-    () => attacks.filter((a) => a.category === THREAT_CATEGORY.DDOS).length,
-    [attacks]
-  );
-
-  const selectedAttack = useMemo(
-    () =>
-      attacks.find((a) => a.id === selectedAttackId) ??
-      historyAttacks.find((a) => a.id === selectedAttackId) ??
-      null,
-    [attacks, historyAttacks, selectedAttackId]
-  );
-
   const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
     setHistoryFetchError(false);
     try {
       const auth = await fetchAuthStatus();
@@ -400,19 +399,26 @@ export function MonitoringPage() {
       setHistoryAttacks(incidents.map((raw) => normalizeAttackPayload(raw)));
     } catch {
       setHistoryFetchError(true);
-    } finally {
-      setHistoryLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (activeTab !== MONITORING_TAB.HISTORY) return;
+    if (activeTab !== MONITORING_TAB.HISTORY && activeTab !== MONITORING_TAB.INTEL) return;
     loadHistory();
   }, [activeTab, loadHistory]);
+
+  const intelIncidents = useMemo(
+    () => mergeIncidentLists(attacks, historyAttacks),
+    [attacks, historyAttacks],
+  );
 
   const openIncidentModal = useCallback((a) => {
     setSelectedAttackId(a.id);
     setModalAttack(a);
+  }, []);
+
+  const selectAttackPreview = useCallback((a) => {
+    setSelectedAttackId(a.id);
   }, []);
 
   const handleMapSelectAttackId = useCallback(
@@ -434,106 +440,23 @@ export function MonitoringPage() {
     }
   }, [attacks, historyAttacks, selectedAttackId]);
 
-  async function onRequestNotify() {
-    const p = await requestNotificationPermission();
-    setNotifyPerm(p === 'unsupported' ? 'denied' : p);
-  }
-
-  const statusLine = (() => {
-    if (!socketEnabled) return t('monitoring.socketOff');
-    if (bridgeState === 'checking') return t('monitoring.bridgeCheck', { version: EXPECTED_BRIDGE_VERSION });
-    if (bridgeState === 'bad') return t('monitoring.bridgeRejected');
-    if (socketConnected) return t('monitoring.listening', { version: EXPECTED_BRIDGE_VERSION });
-    return t('monitoring.connecting');
-  })();
-
-  const statusStripEl = (
-    <div className="relative z-10 flex w-full flex-wrap items-center gap-2 sm:gap-3">
-      <div className="flex min-w-[5.5rem] flex-col rounded-xl border border-slark-border bg-slark-bg px-3 py-2 shadow-sm">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-slark-muted">
-          {t('monitoring.events')}
-        </span>
-        <span className="font-cyber text-2xl font-bold tabular-nums leading-tight text-slark-text">
-          {attacks.length}
-        </span>
-      </div>
-      <div className="flex min-w-[5.5rem] flex-col rounded-xl border border-slark-primary/20 bg-slark-card px-3 py-2 shadow-sm">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-slark-primary">
-          {t('monitoring.ddos')}
-        </span>
-        <span className="font-cyber text-2xl font-bold tabular-nums leading-tight text-slark-primary">
-          {ddosLive}
-        </span>
-      </div>
-      <div
-        className={`flex min-w-0 max-w-[14rem] flex-1 flex-col rounded-xl border px-3 py-2 shadow-sm lg:max-w-[16rem] ${
-          !socketEnabled
-            ? 'border-slark-border bg-slark-card'
-            : bridgeState === 'bad'
-              ? 'border-slark-primary/30 bg-slark-card'
-              : socketConnected && bridgeState === 'ok'
-                ? 'border-emerald-200/90 bg-emerald-50/80'
-                : 'border-amber-200/90 bg-amber-50/70'
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2 w-2 shrink-0 rounded-full ${bridgeStatusDot(socketEnabled, bridgeState, socketConnected)}`}
-            aria-hidden
-          />
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-slark-muted">
-            Bridge
-          </span>
-        </div>
-        <p className="mt-0.5 text-[10px] font-medium leading-snug text-slark-text">{statusLine}</p>
-        <p className="mt-1 truncate font-mono text-[9px] text-slark-muted" title={SOCKET_URL}>
-          {SOCKET_URL}
-        </p>
-      </div>
-      {notificationsSupported() && notifyPerm !== 'granted' && (
-        <button
-          type="button"
-          onClick={onRequestNotify}
-          className="rounded-xl border border-amber-300/80 bg-amber-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-amber-900 shadow-sm transition hover:bg-amber-100"
-        >
-          {notifyPerm === 'denied' ? t('monitoring.notifyBlocked') : t('monitoring.notifyAllow')}
-        </button>
-      )}
-      {notificationsSupported() && notifyPerm === 'granted' && (
-        <span className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-3 py-2 text-[10px] font-medium text-emerald-800">
-          {t('monitoring.notifyOn')}
-        </span>
-      )}
-    </div>
-  );
-
   const mapCardClass =
-    'relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slark-border bg-slark-bg shadow-slark ring-1 ring-slark-border/60';
+    'relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-700/60 bg-slark-dark text-slate-200 shadow-lg ring-1 ring-black/20';
 
-  const asideShellClass =
-    'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slark-border bg-slark-bg shadow-sm';
-
-  const incidentPanelProps = {
-    attack: selectedAttack,
-    onClose: () => setSelectedAttackId(null),
-    onSendToAI: selectedAttack
-      ? () => {
-          threatAiRef.current?.explainAttack(selectedAttack);
-        }
-      : undefined,
-  };
+  const mapAsideShellClass =
+    'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slark-dark text-slate-200 shadow-lg ring-1 ring-black/20';
 
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-[100vw] flex-col overflow-hidden overflow-x-hidden bg-slark-card text-slark-text">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f172a] text-slate-200">
       {/* Ambient */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(198,40,40,0.05),transparent)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(198,40,40,0.08),transparent)]" />
 
       {bridgeState === 'bad' && (
-        <div className="relative z-50 shrink-0 border-b border-slark-primary/20 bg-slark-card px-4 py-3 text-center shadow-sm">
+        <div className="relative z-50 shrink-0 border-b border-slark-primary/30 bg-slark-dark px-4 py-3 text-center shadow-lg">
           <p className="text-sm font-semibold text-slark-primary">
             {t('monitoring.bridgeBadTitle', { url: SOCKET_URL, version: EXPECTED_BRIDGE_VERSION })}
           </p>
-          <p className="mt-2 text-xs leading-relaxed text-slark-muted">{t('monitoring.bridgeBadBody')}</p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-400">{t('monitoring.bridgeBadBody')}</p>
         </div>
       )}
 
@@ -544,13 +467,7 @@ export function MonitoringPage() {
         bridgeBannerVisible={bridgeState === 'bad'}
       />
 
-      <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col pl-[3.25rem]">
-        {activeTab === MONITORING_TAB.STATUS && (
-          <div className="thin-scrollbar mx-auto flex w-full max-w-[1920px] flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-4 lg:px-5">
-            {statusStripEl}
-          </div>
-        )}
-
+      <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col pl-16">
         <div
           className={
             activeTab === MONITORING_TAB.MAP
@@ -573,61 +490,30 @@ export function MonitoringPage() {
               </div>
             </main>
             <aside
-              className={`${asideShellClass} mt-3 flex min-h-0 flex-[2] lg:mt-0 lg:max-w-[min(100%,26rem)] lg:flex-none lg:shrink-0 lg:basis-[clamp(16rem,26vw,26rem)]`}
+              className={`${mapAsideShellClass} mt-3 flex h-full min-h-0 flex-[2] lg:mt-0 lg:max-w-[min(100%,26rem)] lg:flex-none lg:shrink-0 lg:basis-[clamp(16rem,26vw,26rem)]`}
               aria-label={t('monitoring.detailsRegion')}
             >
-              <div className="thin-scrollbar flex min-h-0 w-full flex-1 flex-col overflow-y-auto bg-slark-bg">
-                <ThreatMetricsPanel attacks={attacks} eventsPerMin={eventsPerMin} />
-                <ProtectionThreatPanel attacks={attacks} />
+              <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-slark-dark">
+                <ThreatMetricsPanel attacks={attacks} eventsPerMin={eventsPerMin} variant="dark" />
+                <ProtectionThreatPanel attacks={attacks} variant="dark" />
               </div>
             </aside>
           </div>
         </div>
 
         {activeTab === MONITORING_TAB.HISTORY && (
-          <div className="mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4 lg:flex-row lg:px-5 lg:py-4">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-                <p className="max-w-xl text-[11px] leading-relaxed text-slark-muted">
-                  {t('monitoring.historySubtitle')}
-                </p>
-                <button
-                  type="button"
-                  onClick={loadHistory}
-                  disabled={historyLoading}
-                  className="shrink-0 rounded-lg border border-slark-border bg-slark-bg px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slark-text shadow-sm transition hover:bg-slark-card disabled:opacity-50"
-                >
-                  {historyLoading ? t('monitoring.historyLoading') : t('monitoring.historyLoad')}
-                </button>
-              </div>
-              {historyFetchError ? (
-                <p className="text-[11px] text-slark-primary">{t('monitoring.historyError')}</p>
-              ) : null}
-              <div className={`${asideShellClass} min-h-0 flex-1`}>
-                <LiveAttackFeed
-                  attacks={historyAttacks}
-                  maxRows={48}
-                  socketEnabled={socketEnabled}
-                  socketConnected={Boolean(socketConnected && bridgeState === 'ok')}
-                  bridgeState={bridgeState}
-                  selectedId={selectedAttackId}
-                  onSelectAttack={openIncidentModal}
-                  emptyHint={t('monitoring.historyEmpty')}
-                  className="min-h-0 flex-1 border-l-0 bg-transparent"
-                />
-              </div>
-            </div>
-            <div className={`${asideShellClass} w-full shrink-0 lg:max-w-md`}>
-              <IncidentDetailPanel {...incidentPanelProps} />
-            </div>
-          </div>
+          <HistoryTabView
+            attacks={historyAttacks}
+            error={historyFetchError ? t('monitoring.historyError') : null}
+            selectedId={selectedAttackId}
+            onSelectAttack={selectAttackPreview}
+            onViewDetails={openIncidentModal}
+          />
         )}
 
         {activeTab === MONITORING_TAB.ATTACKER && (
           <div className="mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4 lg:flex-row lg:px-5 lg:py-4">
-            <div
-              className={`${asideShellClass} flex min-h-0 min-w-0 flex-1 flex-col`}
-            >
+            <div className={`${mapAsideShellClass} flex min-h-0 min-w-0 flex-1 flex-col`}>
               <LiveAttackFeed
                 attacks={attacks}
                 maxRows={24}
@@ -636,40 +522,39 @@ export function MonitoringPage() {
                 bridgeState={bridgeState}
                 selectedId={selectedAttackId}
                 onSelectAttack={openIncidentModal}
-                className="min-h-0 flex-1 border-l-0 bg-transparent"
+                variant="dark"
+                className="min-h-0 flex-1"
               />
             </div>
-            <div className={`${asideShellClass} w-full shrink-0 lg:max-w-md`}>
-              <IncidentDetailPanel {...incidentPanelProps} />
+            <div className={`${mapAsideShellClass} flex min-h-0 w-full shrink-0 flex-col lg:max-w-md`}>
+              <IncidentDetailPanel
+                variant="dark"
+                incidents={attacks}
+                selectedId={selectedAttackId}
+                onSelectAttack={openIncidentModal}
+              />
             </div>
           </div>
         )}
 
         {activeTab === MONITORING_TAB.INTEL && (
-          <div className="thin-scrollbar mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-0 overflow-y-auto px-3 py-4 sm:px-4 lg:px-5">
-            <div className="rounded-2xl border border-slark-border bg-slark-bg">
-              <ThreatMetricsPanel attacks={attacks} eventsPerMin={eventsPerMin} />
-              <ProtectionThreatPanel attacks={attacks} />
-            </div>
-          </div>
-        )}
-
-        {activeTab === MONITORING_TAB.READOUT && (
-          <div className="thin-scrollbar mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-4 lg:px-5">
-            <div className={asideShellClass}>
-              <IncidentDetailPanel {...incidentPanelProps} />
+          <div className="thin-scrollbar-dark flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-2 py-3 sm:px-3 lg:px-4">
+            <div className={`${mapAsideShellClass} w-full overflow-hidden`}>
+              <ThreatDailyChart key="intel-daily-chart" attacks={intelIncidents} variant="dark" />
+              <ThreatDailyCommentary attacks={intelIncidents} variant="dark" />
             </div>
           </div>
         )}
 
         {activeTab === MONITORING_TAB.ASSISTANT && (
           <section
-            className="relative z-0 mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col border-t border-slark-border bg-slark-bg px-3 pb-3 pt-2 sm:px-4 lg:px-5"
+            className="relative z-0 mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col px-3 pb-3 pt-2 sm:px-4 lg:px-5"
             aria-label={t('aiChat.title')}
           >
             <ThreatAIChatPanel
               ref={threatAiRef}
-              className="flex min-h-0 flex-1 flex-col rounded-t-2xl shadow-slark"
+              theme="dark"
+              className="flex min-h-0 flex-1 flex-col rounded-2xl shadow-lg ring-1 ring-black/20"
             />
           </section>
         )}
@@ -677,6 +562,7 @@ export function MonitoringPage() {
 
       <IncidentDetailModal
         attack={modalAttack}
+        variant="dark"
         onClose={() => setModalAttack(null)}
         onSendToAI={
           modalAttack

@@ -23,11 +23,11 @@ export function buildThreatReadoutText(attack, labels = {}) {
   const hw = attack.id ? String(attack.id).replace(/-/g, '').slice(0, 12) : '—';
 
   const lines = [
-    `pd-src0   Link encap:Slark  HWaddr ${hw}`,
+    `slark-src0   Link encap:Slark  HWaddr ${hw}`,
     `          inet addr:${dash(attack.attackerIp)}  ${inetScope}`,
     `          geo: ${dash(attack.sourceLabel)}`,
     `          coords: ${fmtCoord(from?.lat, from?.lon)}  (WGS84)`,
-    `pd-dst0   inet dst:${fmtCoord(to?.lat, to?.lon)}  (${protectedSite})`,
+    `slark-dst0   inet dst:${fmtCoord(to?.lat, to?.lon)}  (${protectedSite})`,
     `route:    ${dash(attack.targetLabel)}`,
     `request:  ${dash(attack.method)} ${dash(attack.path)}`,
     `ua:       ${dash(attack.userAgent)}`,

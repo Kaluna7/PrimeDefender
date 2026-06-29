@@ -25,16 +25,23 @@ export function HomePage() {
   }, [t, locale]);
 
   useEffect(() => {
-    if (phase !== 'intro' && phase !== 'loading') return undefined;
-
     const scrollRoot = document.getElementById('app-scroll-root');
     const shell = scrollRoot?.parentElement;
-    scrollRoot?.classList.add('landing-page-scroll');
-    shell?.classList.add('landing-page-shell');
+
+    scrollRoot?.classList.remove('landing-page-scroll', 'hub-page-scroll');
+    shell?.classList.remove('landing-page-shell', 'hub-page-shell');
+
+    if (phase === 'intro' || phase === 'loading') {
+      scrollRoot?.classList.add('landing-page-scroll');
+      shell?.classList.add('landing-page-shell');
+    } else if (phase === 'hub') {
+      scrollRoot?.classList.add('hub-page-scroll');
+      shell?.classList.add('hub-page-shell');
+    }
 
     return () => {
-      scrollRoot?.classList.remove('landing-page-scroll');
-      shell?.classList.remove('landing-page-shell');
+      scrollRoot?.classList.remove('landing-page-scroll', 'hub-page-scroll');
+      shell?.classList.remove('landing-page-shell', 'hub-page-shell');
     };
   }, [phase]);
 
@@ -110,5 +117,9 @@ export function HomePage() {
     );
   }
 
-  return <DashboardPage />;
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <DashboardPage />
+    </div>
+  );
 }

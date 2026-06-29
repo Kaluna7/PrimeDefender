@@ -1,9 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Center, useGLTF } from '@react-three/drei';
-import { integrationGuide } from '../../content/integrationGuide.js';
+import { integrationGuide } from '../../pages/docs/integrationGuide.js';
+import { IntegrationGuideSections } from '../../pages/docs/IntegrationGuideSections.jsx';
 import { MONITOR_MODEL_URL, MYBOOK_MODEL_URL } from '../../assets/home3d.js';
 import {
   BOOK_CLOSED_EULER,
@@ -77,6 +78,15 @@ function BookCanvas({ bookPresentationOpen }) {
 export function GuidebookModal({ open, onClose, bookPresentationOpen = false, locale, t, theme }) {
   const guide = integrationGuide[locale] ?? integrationGuide.en;
   const themeStyle = theme ? heroThemeCssVars(theme) : undefined;
+  const [showBookPreview, setShowBookPreview] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const update = () => setShowBookPreview(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -124,94 +134,58 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
             theme ? 'border-[var(--hero-border)]' : 'border-slark-border'
           }`}
         >
-          <div
-            className={`relative h-44 min-h-[176px] w-full shrink-0 overflow-hidden sm:h-[min(260px,32vh)] sm:min-h-[200px] sm:w-[42%] sm:max-w-[280px] ${
-              theme
-                ? 'bg-gradient-to-br from-[var(--hero-card)] via-[var(--hero-bg)] to-[var(--hero-card)]'
-                : 'bg-gradient-to-br from-slark-card via-slark-bg to-slark-card'
-            }`}
-          >
-            <BookCanvas bookPresentationOpen={bookPresentationOpen} />
-          </div>
-          <div className="flex flex-1 flex-col justify-center px-4 py-4 sm:py-5 sm:pr-6">
+          {showBookPreview ? (
+            <div
+              className={`relative h-[min(260px,32vh)] min-h-[200px] w-[42%] max-w-[280px] shrink-0 overflow-hidden ${
+                theme
+                  ? 'bg-gradient-to-br from-[var(--hero-card)] via-[var(--hero-bg)] to-[var(--hero-card)]'
+                  : 'bg-gradient-to-br from-slark-card via-slark-bg to-slark-card'
+              }`}
+            >
+              <BookCanvas bookPresentationOpen={bookPresentationOpen} />
+            </div>
+          ) : null}
+          <div className="flex flex-1 flex-col justify-center px-4 py-3.5 sm:py-5 sm:pr-6">
             <h2
               id="guidebook-title"
-              className={`font-cyber text-lg font-bold tracking-tight sm:text-xl ${
-                theme ? 'text-[var(--hero-text)]' : 'text-slark-text'
+              className={`font-cyber text-xl font-bold leading-tight tracking-tight sm:text-xl ${
+                theme ? 'text-[var(--hero-text)]' : 'text-slark-text dark:text-white'
               }`}
             >
               {guide.title}
             </h2>
             <p
-              className={`mt-2 text-xs leading-relaxed sm:text-sm ${
-                theme ? 'text-[var(--hero-muted)] opacity-95' : 'text-slark-muted/95'
+              className={`mt-1.5 text-[15px] leading-relaxed sm:text-sm ${
+                theme ? 'text-[var(--hero-muted)] opacity-95' : 'text-slark-muted'
               }`}
             >
               {guide.subtitle}
             </p>
+            <Link
+              to="/docs"
+              className={`mt-3 inline-flex font-cyber text-sm font-semibold uppercase tracking-wide underline-offset-4 hover:underline sm:text-xs sm:tracking-wider ${
+                theme ? 'text-[var(--hero-primary)] hover:text-[var(--hero-primary)]' : 'text-slark-primary hover:text-slark-primary-hover'
+              }`}
+              onClick={onClose}
+            >
+              {t('home.guideModalFullDocs')}
+            </Link>
           </div>
         </div>
 
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          {guide.sections.map((section) => (
-            <section key={section.h} className="mb-6 last:mb-0">
-              <h3
-                className={`font-cyber text-sm font-semibold ${
-                  theme ? 'text-[var(--hero-primary)] opacity-95' : 'text-slark-primary/95'
-                }`}
-              >
-                {section.h}
-              </h3>
-              <ul
-                className={`mt-2 list-disc space-y-2 pl-4 text-xs leading-relaxed sm:text-sm ${
-                  theme ? 'text-[var(--hero-text)] opacity-90' : 'text-slark-text/88'
-                }`}
-              >
-                {section.p.map((line, i) => (
-                  <li key={i} className={theme ? 'marker:text-[var(--hero-muted)]' : 'marker:text-slark-muted'}>
-                    {line.split('`').map((part, j) =>
-                      j % 2 === 1 ? (
-                        <code
-                          key={j}
-                          className={`rounded px-1 py-0.5 font-mono text-[0.7rem] sm:text-[0.75rem] ${
-                            theme
-                              ? 'bg-[color-mix(in_srgb,var(--hero-card)_80%,transparent)] text-[var(--hero-primary)]'
-                              : 'bg-slark-card/80 text-slark-primary'
-                          }`}
-                        >
-                          {part}
-                        </code>
-                      ) : (
-                        <span key={j}>{part}</span>
-                      ),
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-5">
+          <IntegrationGuideSections variant="modal" locale={locale} theme={Boolean(theme)} />
         </div>
 
         <div
-          className={`flex shrink-0 flex-col gap-2 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${
+          className={`flex shrink-0 justify-end border-t px-4 py-3.5 sm:px-6 sm:py-4 ${
             theme ? 'border-[var(--hero-border)] bg-[var(--hero-card)]' : 'border-slark-border bg-slark-card'
           }`}
         >
-          <Link
-            to="/docs"
-            className={`text-center font-cyber text-xs font-semibold uppercase tracking-wider underline-offset-4 hover:underline ${
-              theme
-                ? 'text-[var(--hero-muted)] hover:text-[var(--hero-primary)]'
-                : 'text-slark-muted hover:text-slark-primary'
-            }`}
-            onClick={onClose}
-          >
-            {t('home.guideModalFullDocs')}
-          </Link>
           <button
             type="button"
             onClick={onClose}
-            className={`font-cyber rounded-xl border px-5 py-2.5 text-xs font-bold uppercase tracking-[0.2em] transition ${
+            className={`font-cyber w-full rounded-xl border px-5 py-3 text-sm font-bold uppercase tracking-[0.15em] transition sm:w-auto sm:py-2.5 sm:text-xs sm:tracking-[0.2em] ${
               theme
                 ? 'border-[var(--hero-border)] bg-[var(--hero-bg)] text-[var(--hero-text)] hover:border-[var(--hero-primary)] hover:bg-[var(--hero-card)]'
                 : 'border-slark-border bg-slark-bg text-slark-text hover:border-slark-primary hover:bg-slark-card'

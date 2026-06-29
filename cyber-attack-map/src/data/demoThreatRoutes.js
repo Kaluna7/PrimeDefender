@@ -19,9 +19,9 @@ export const DEMO_THREAT_ROUTES = [
     to: { lat: 52.52, lon: 13.41 },
     sourceLabel: 'Finland',
     targetLabel: 'Germany',
-    category: THREAT_CATEGORY.MALWARE,
+    category: THREAT_CATEGORY.INTRUSION,
     severity: 'critical',
-    detection: 'malware:dropper',
+    detection: 'file_inclusion:remote',
   },
   {
     from: { lat: 38.72, lon: -9.14 },
@@ -72,8 +72,9 @@ export const DEMO_THREAT_ROUTES = [
     to: { lat: -33.87, lon: 151.21 },
     sourceLabel: 'Brazil',
     targetLabel: 'Australia',
-    category: THREAT_CATEGORY.MALWARE,
+    category: THREAT_CATEGORY.BOTNET,
     severity: 'medium',
+    detection: 'scanner:path_probe',
   },
   {
     from: { lat: 10.82, lon: 106.63 },

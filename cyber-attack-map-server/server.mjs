@@ -37,8 +37,14 @@ import {
   midtransConfigured,
   syncPendingPaymentsForEmail,
 } from './payment/payments.mjs';
-import { getUserByEmail, migrateLegacyVerifiedUsers, persistenceRequired } from './db/usersMongo.mjs';
+import { findUserAuthByEmail, getUserByEmail, migrateLegacyVerifiedUsers, persistenceRequired } from './db/usersMongo.mjs';
 import { ensureUserApiKey, resolveUserByIngestApiKey, verifyUserIngestApiKey } from './auth/userApiKeys.mjs';
+import { startApiKeyAccessChallenge, verifyApiKeyAccessChallenge } from './auth/apiKeyAccess.mjs';
+import {
+  completePasswordChange,
+  startPasswordChangeChallenge,
+  verifyPasswordChangeCode,
+} from './auth/passwordChange.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() || '';
@@ -319,10 +325,11 @@ const httpServer = createServer(async (req, res) => {
       return;
     }
     let stored = await getUserByEmail(session.email);
-    if (stored?.subscription?.active && !stored?.apiKey) {
+    if (stored?.subscription?.active && !stored?.apiKey?.hasKey) {
       await ensureUserApiKey(session.email);
       stored = await getUserByEmail(session.email);
     }
+    const authRecord = await findUserAuthByEmail(session.email);
     sendJson(res, 200, {
       ok: true,
       user: stored
@@ -333,6 +340,7 @@ const httpServer = createServer(async (req, res) => {
             picture: stored.picture,
             subscription: stored.subscription,
             apiKey: stored.apiKey,
+            hasPassword: Boolean(authRecord?.passwordHash),
           }
         : {
             email: session.email,
@@ -340,8 +348,113 @@ const httpServer = createServer(async (req, res) => {
             picture: session.picture,
             subscription: null,
             apiKey: null,
+            hasPassword: Boolean(authRecord?.passwordHash),
           },
     });
+    return;
+  }
+
+  if (p === '/account/api-key/reveal/send' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const purpose = body.purpose === 'reset' ? 'reset' : 'view';
+      const result = await startApiKeyAccessChallenge({
+        email: session.email,
+        name: session.name,
+        purpose,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/account/api-key/reveal/verify' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await verifyApiKeyAccessChallenge({
+        email: session.email,
+        challengeId: body.challengeId,
+        code: body.code,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/account/password-change/send' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const result = await startPasswordChangeChallenge({
+        email: session.email,
+        name: session.name,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/account/password-change/verify' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await verifyPasswordChangeCode({
+        email: session.email,
+        challengeId: body.challengeId,
+        code: body.code,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/account/password-change/complete' && req.method === 'POST') {
+    const session = sessionFromRequest(req);
+    if (!session?.email) {
+      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await completePasswordChange({
+        email: session.email,
+        challengeId: body.challengeId,
+        password: body.password,
+        confirmPassword: body.confirmPassword,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
     return;
   }
 

@@ -14,8 +14,10 @@ import {
   findPendingOrdersByEmail,
   persistenceRequired,
 } from '../db/usersMongo.mjs';
+import { sendPaymentSuccessEmail } from './paymentEmail.mjs';
 
 const PAID_STATUSES = new Set(['capture', 'settlement']);
+const DECLINED_STATUSES = new Set(['cancel', 'deny', 'expire']);
 
 export function getMidtransConfig() {
   const isProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
@@ -67,7 +69,7 @@ function authHeader(serverKey) {
 }
 
 function newOrderId() {
-  return `PD-${Date.now()}-${randomBytes(4).toString('hex')}`;
+  return `SL-${Date.now()}-${randomBytes(4).toString('hex')}`;
 }
 
 /**
@@ -268,7 +270,13 @@ export async function createCoreChargeTransaction(input) {
   }
 
   if (status === 'settlement' || status === 'capture') {
-    await activateSubscriptionForOrder(orderId);
+    const activated = await activateSubscriptionForOrder(orderId);
+    if (activated.ok && !activated.already) {
+      await notifyPaymentSuccessEmail(
+        { email: input.email, planId: plan.id, orderId, amount: plan.amount },
+        activated
+      );
+    }
   }
 
   return {
@@ -313,23 +321,44 @@ export async function confirmOrderPayment(orderId, userEmail) {
 
   if (order.status === 'paid') {
     const activated = await activateSubscriptionForOrder(orderId);
-    return { ok: true, already: true, activated };
+    return { ok: true, already: true, activated, apiKey: activated?.apiKey || null };
   }
 
   const statusRes = await fetchMidtransOrderStatus(orderId);
   if (!statusRes.ok) return statusRes;
 
+  const txStatus = statusRes.data?.transaction_status;
   if (!isMidtransPaid(statusRes.data)) {
     return {
       ok: false,
-      error: 'not_paid_yet',
-      transactionStatus: statusRes.data?.transaction_status,
+      error: DECLINED_STATUSES.has(txStatus) ? 'payment_declined' : 'not_paid_yet',
+      transactionStatus: txStatus,
+      declined: DECLINED_STATUSES.has(txStatus),
     };
   }
 
   const activated = await activateSubscriptionForOrder(orderId);
   if (!activated.ok) return activated;
-  return { ok: true, activated, transactionStatus: statusRes.data.transaction_status };
+  const emailResult = await notifyPaymentSuccessEmail(order, activated);
+  return {
+    ok: true,
+    activated,
+    apiKey: activated.apiKey || null,
+    transactionStatus: txStatus,
+    emailSent: emailResult.ok === true,
+  };
+}
+
+async function notifyPaymentSuccessEmail(order, activated) {
+  if (activated.already) return { ok: false, skipped: true };
+  return sendPaymentSuccessEmail({
+    toEmail: order.email,
+    toName: activated.userName || order.email,
+    planId: order.planId,
+    orderId: order.orderId,
+    amount: order.amount,
+    expiresAt: activated.expiresAt,
+  });
 }
 
 /** Cek semua order pending user ke Midtrans dan aktifkan yang sudah bayar. */
@@ -372,7 +401,9 @@ export async function handleMidtransNotification(payload) {
   }
 
   const activated = await activateSubscriptionForOrder(orderId);
-  return { ok: true, status: 'paid', activated };
+  if (!activated.ok) return activated;
+  const emailResult = await notifyPaymentSuccessEmail(order, activated);
+  return { ok: true, status: 'paid', activated, emailSent: emailResult.ok === true };
 }
 
 export function getPublicPaymentConfig() {

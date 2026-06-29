@@ -222,7 +222,21 @@ export function createWhySlarkGlobe(canvas, options = {}) {
     });
   }
 
-  const earthGeo = new THREE.SphereGeometry(earthRadius, 56, 56);
+  const earthGeo = new THREE.SphereGeometry(earthRadius, 64, 64);
+  const smoothShellGeo = new THREE.SphereGeometry(earthRadius * 1.012, 72, 72);
+  const smoothShellMat = new THREE.MeshStandardMaterial({
+    color: 0x2a5f7a,
+    emissive: 0x0c1a28,
+    emissiveIntensity: 0.2,
+    metalness: 0.04,
+    roughness: 0.82,
+    transparent: true,
+    opacity: 0,
+    flatShading: false,
+  });
+  const smoothShellMesh = new THREE.Mesh(smoothShellGeo, smoothShellMat);
+  globeGroup.add(smoothShellMesh);
+
   const earthMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     metalness: 0.05,
@@ -239,7 +253,11 @@ export function createWhySlarkGlobe(canvas, options = {}) {
       tex.colorSpace = THREE.SRGBColorSpace;
       earthMat.map = tex;
       earthMat.color.set(0xffffff);
+      smoothShellMat.map = tex;
+      smoothShellMat.color.set(0xffffff);
+      smoothShellMat.roughness = 0.78;
       earthMat.needsUpdate = true;
+      smoothShellMat.needsUpdate = true;
     },
     undefined,
     () => {},
@@ -392,6 +410,10 @@ export function createWhySlarkGlobe(canvas, options = {}) {
     const reveal = THREE.MathUtils.clamp(entranceReveal, 0, 1);
 
     const shellDoneProgress = assemblyStart + (assemblyEnd - assemblyStart) * 0.88;
+    const smoothShellReveal = easeInOutCubic(
+      THREE.MathUtils.clamp((globalAssembly - 0.7) / 0.22, 0, 1),
+    );
+    const blockyMask = 1 - smoothShellReveal;
     const particleFade = easeInOutCubic(
       THREE.MathUtils.clamp((progress - shellDoneProgress) / 0.1, 0, 1),
     );
@@ -399,7 +421,7 @@ export function createWhySlarkGlobe(canvas, options = {}) {
       easeInOutCubic(THREE.MathUtils.clamp((progress - (shellDoneProgress + 0.08)) / 0.1, 0, 1)) *
       reveal;
 
-    particleGroup.visible = particleFade < 0.995;
+    particleGroup.visible = particleFade < 0.995 || blockyMask > 0.02;
 
     pieces.forEach((piece) => {
       const { mesh, scatter, globe, scatterRot, delay } = piece;
@@ -441,17 +463,25 @@ export function createWhySlarkGlobe(canvas, options = {}) {
       }
 
       const shellBlend = THREE.MathUtils.clamp((local - 0.55) / 0.45, 0, 1);
-      const pieceScale = THREE.MathUtils.lerp(1.15, 1.05, shellBlend);
+      const pieceScale = THREE.MathUtils.lerp(1.15, assembled ? 0.55 : 1.05, shellBlend);
       mesh.scale.setScalar(pieceScale);
 
       const mat = /** @type {THREE.MeshStandardMaterial} */ (mesh.material);
       const shellOpacity = THREE.MathUtils.lerp(1, 0.95, Math.max(0, (local - 0.75) / 0.25));
       const fadeWeight = smoothstep(0.5, 0.95, local);
-      const opacity = shellOpacity * THREE.MathUtils.lerp(1, 1 - particleFade, fadeWeight) * reveal;
+      const assembledFade = assembled ? blockyMask : 1;
+      const opacity =
+        shellOpacity *
+        THREE.MathUtils.lerp(1, 1 - particleFade, fadeWeight) *
+        assembledFade *
+        reveal;
       mat.opacity = opacity;
       mat.depthWrite = opacity > 0.35;
       mat.visible = opacity > 0.02;
     });
+
+    smoothShellMat.opacity = smoothShellReveal * (1 - earthReveal) * reveal * 0.97;
+    smoothShellMesh.visible = smoothShellMat.opacity > 0.01;
 
     earthMat.opacity = earthReveal * 0.96;
 
@@ -544,6 +574,8 @@ export function createWhySlarkGlobe(canvas, options = {}) {
       });
       earthGeo.dispose();
       earthMat.dispose();
+      smoothShellGeo.dispose();
+      smoothShellMat.dispose();
       threatArcs.forEach((slot) => {
         slot.line.geometry.dispose();
         slot.lineMat.dispose();

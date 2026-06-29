@@ -215,7 +215,6 @@ export function LandingPage({ onGetStarted }) {
       </div>
 
       <WhySlarkScrollSection
-        eyebrow={t('brand.name')}
         title={t('home.sectionFeatures')}
         brandName={t('brand.name')}
         finaleTagline={t('home.featuresFinaleTagline')}

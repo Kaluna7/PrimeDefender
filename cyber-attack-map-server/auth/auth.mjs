@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import nodemailer from 'nodemailer';
-import { isUserEmailVerified, markEmailVerified, upsertUserByEmail, createPasswordUser, findUserAuthByEmail } from '../db/usersMongo.mjs';
+import { isUserEmailVerified, markEmailVerified, upsertUserByEmail, createPasswordUser, findUserAuthByEmail, updateUserPasswordHash } from '../db/usersMongo.mjs';
 import { mongoDisabled } from '../db/mongo.mjs';
 
 const scryptAsync = promisify(scrypt);
@@ -224,7 +224,7 @@ export async function sendVerificationEmail({ toEmail, toName, code }) {
       <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Slark</h1>
       <p>Hi ${toName || 'there'},</p>
       <p>Your verification code to complete sign-in:</p>
-      <p style="font-size:28px;letter-spacing:0.35em;font-weight:700;color:#3B82F6;margin:20px 0">${code}</p>
+      <p style="font-size:28px;letter-spacing:0.35em;font-weight:700;color:#C62828;margin:20px 0">${code}</p>
       <p style="color:#94a3b8;font-size:13px">This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>
     </div>
   `.trim();
@@ -455,6 +455,24 @@ export function getSession(token) {
 
 export function signOut(token) {
   if (token) sessions.delete(token);
+}
+
+export const PASSWORD_MIN_LENGTH = PASSWORD_MIN_LEN;
+
+/**
+ * @param {{ email: string, password: string }} input
+ */
+export async function updatePasswordForUser({ email, password }) {
+  if (mongoDisabled()) return { ok: false, error: 'mongo_disabled' };
+  const normalized = String(email || '').toLowerCase().trim();
+  if (!normalized) return { ok: false, error: 'user_not_found' };
+  if (String(password || '').length < PASSWORD_MIN_LEN) {
+    return { ok: false, error: 'password_too_short' };
+  }
+  const passwordHash = await hashPassword(password);
+  const updated = await updateUserPasswordHash(normalized, passwordHash);
+  if (!updated) return { ok: false, error: 'user_not_found' };
+  return { ok: true };
 }
 
 export function parseSessionCookie(cookieHeader) {

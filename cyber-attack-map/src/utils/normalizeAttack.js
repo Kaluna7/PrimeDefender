@@ -52,9 +52,17 @@ function synthesizeGeoMeta(rawGeoMeta, sourceLabel, fromPoint) {
       : fromCoords
         ? 'Derived from incident coordinates'
         : undefined;
+  const country =
+    rawGeoMeta && typeof rawGeoMeta.country === 'string' && rawGeoMeta.country.trim()
+      ? rawGeoMeta.country.trim().slice(0, 80)
+      : undefined;
+  const countryCode =
+    rawGeoMeta && typeof rawGeoMeta.countryCode === 'string' && rawGeoMeta.countryCode.trim()
+      ? rawGeoMeta.countryCode.trim().slice(0, 2).toUpperCase()
+      : undefined;
 
-  if (!location && !coordinates && !accuracy && !note) return undefined;
-  return { location, coordinates, accuracy, note };
+  if (!location && !coordinates && !accuracy && !note && !country && !countryCode) return undefined;
+  return { location, coordinates, accuracy, note, country, countryCode };
 }
 
 /**

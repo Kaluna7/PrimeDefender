@@ -147,6 +147,35 @@ export async function markEmailVerified(email) {
   );
 }
 
+/**
+ * @param {string} email
+ * @param {string} passwordHash
+ */
+export async function updateUserPasswordHash(email, passwordHash) {
+  const coll = await usersColl();
+  if (!coll) return false;
+  const normalized = String(email).toLowerCase().trim();
+  const result = await coll.updateOne(
+    { email: normalized },
+    { $set: { passwordHash, updatedAt: Date.now() } }
+  );
+  return result.matchedCount > 0;
+}
+
+function formatApiKeyMeta(doc) {
+  const k = doc.apiKey;
+  if (!k) return null;
+  const plain = typeof k.plain === 'string' ? k.plain : null;
+  const hasKey = Boolean(k.hash || plain || k.prefix);
+  if (!hasKey) return null;
+  const prefix = k.prefix || (plain ? `${plain.slice(0, 12)}…` : 'pd_••••••••••••');
+  return {
+    prefix,
+    createdAt: k.createdAt,
+    hasKey: true,
+  };
+}
+
 function formatUser(doc) {
   const sub = doc.subscription;
   const active =
@@ -171,14 +200,7 @@ function formatUser(doc) {
           labelId: plan?.labelId,
         }
       : null,
-    apiKey:
-      active && doc.apiKey?.plain
-        ? {
-            key: doc.apiKey.plain,
-            prefix: doc.apiKey.prefix,
-            createdAt: doc.apiKey.createdAt,
-          }
-        : null,
+    apiKey: active ? formatApiKeyMeta(doc) : null,
   };
 }
 
@@ -254,10 +276,12 @@ export async function activateSubscriptionForOrder(orderId) {
   if (!order) return { ok: false, error: 'order_not_found' };
   if (order.status === 'paid') {
     const keyInfo = await ensureUserApiKey(order.email);
+    const users = await usersColl();
+    const existing = users ? await users.findOne({ email: order.email }) : null;
     return {
       ok: true,
       already: true,
-      expiresAt: user?.subscription?.expiresAt,
+      expiresAt: existing?.subscription?.expiresAt,
       planId: order.planId,
       apiKey: keyInfo?.apiKey,
     };
@@ -304,5 +328,6 @@ export async function activateSubscriptionForOrder(orderId) {
     planId: order.planId,
     apiKey: keyInfo?.apiKey,
     apiKeyPrefix: keyInfo?.prefix,
+    userName: user?.name || email,
   };
 }

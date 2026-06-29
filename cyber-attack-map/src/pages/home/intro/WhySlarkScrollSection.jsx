@@ -7,7 +7,17 @@ import { bindLandingScrollProxy } from '../../../utils/landingScrollProxy.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const ENTRANCE_SHARE = 0.1;
+const ENTRANCE_SHARE = 0.07;
+const PAUSE_SHARE = 0.18;
+const ANIM_SHARE = 1 - ENTRANCE_SHARE - PAUSE_SHARE;
+
+const TEXT_PANEL = {
+  bg: C.defense.card,
+  iconBg: C.onDark.elevated,
+  border: C.defense.border,
+  text: C.onDark.text,
+  textMuted: C.onDark.textMuted,
+};
 
 /** Glass shards — each flies in from a corner/edge, then merges into unified blur. */
 const SLARK_GLASS_SHARDS = [
@@ -36,14 +46,14 @@ function easeOut(t) {
  * @param {{ isMobile: boolean, reducedMotion: boolean }} opts
  */
 function applySlarkGlassBelt(beltEl, p, { isMobile, reducedMotion }) {
-  const beltT = clamp01((p - 0.82) / 0.18);
-  const beltVisible = p >= 0.82;
-  const shardScale = isMobile ? 0.72 : 1;
-  const scatterMax = isMobile ? 1.15 : 1.35;
+  const beltT = clamp01((p - 0.68) / 0.32);
+  const beltVisible = p >= 0.68;
+  const shardScale = isMobile ? 0.85 : 1;
+  const scatterMax = isMobile ? 1.45 : 1.65;
 
   gsap.set(beltEl, {
     visibility: beltVisible ? 'visible' : 'hidden',
-    opacity: beltVisible ? 1 : 0,
+    opacity: 1,
     zIndex: 0,
   });
 
@@ -63,9 +73,9 @@ function applySlarkGlassBelt(beltEl, p, { isMobile, reducedMotion }) {
     return;
   }
 
-  const appearT = clamp01(beltT / 0.08);
-  const mergeT = clamp01((beltT - 0.08) / 0.5);
-  const fuseT = clamp01((beltT - 0.55) / 0.45);
+  const appearT = clamp01(beltT / 0.12);
+  const mergeT = clamp01((beltT - 0.12) / 0.48);
+  const fuseT = clamp01((beltT - 0.58) / 0.42);
   const fuseEased = easeOut(fuseT);
 
   const shardShow = easeOut(appearT);
@@ -86,7 +96,7 @@ function applySlarkGlassBelt(beltEl, p, { isMobile, reducedMotion }) {
     crackAlpha = Math.max(crackAlpha, shardShow * (1 - localMergeEased * 0.9));
 
     gsap.set(el, {
-      opacity: beltVisible ? shardAlpha : 0,
+      opacity: beltVisible ? Math.max(0.08, shardAlpha) : 0,
       visibility: beltVisible && shardAlpha > 0.02 ? 'visible' : 'hidden',
       x: ox * scatter,
       y: oy * scatter,
@@ -175,31 +185,55 @@ function FeatureIcon({ type }) {
   );
 }
 
-const FeatureCard = forwardRef(function FeatureCard({ feature, side }, ref) {
+function WhySlarkTitle({ title, className = '' }) {
+  const parts = title.split(/(Slark)/i);
+  return (
+    <div
+      className="inline-block rounded-2xl border px-6 py-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)] sm:px-10 sm:py-5"
+      style={{ borderColor: TEXT_PANEL.border, backgroundColor: TEXT_PANEL.bg }}
+    >
+      <h2 className={`font-cyber font-bold ${className}`} style={{ color: TEXT_PANEL.text }}>
+        {parts.map((part, i) =>
+          /^slark$/i.test(part) ? (
+            <span key={i} style={{ color: C.primary }}>
+              {part}
+            </span>
+          ) : (
+            part
+          ),
+        )}
+      </h2>
+    </div>
+  );
+}
+
+const FeatureCard = forwardRef(function FeatureCard({ feature }, ref) {
   return (
     <article
       ref={ref}
-      className={`why-slark-card pointer-events-none absolute z-20 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-[0_16px_48px_rgba(17,24,39,0.18)] sm:w-72 sm:p-5 ${
-        side === 'left'
-          ? 'left-3 top-[52%] -translate-y-1/2 sm:left-[8%] md:left-[10%]'
-          : 'right-3 top-[52%] -translate-y-1/2 sm:right-[8%] md:right-[10%]'
-      } max-sm:left-3 max-sm:right-3 max-sm:top-auto max-sm:bottom-4 max-sm:translate-y-0`}
-      style={{ opacity: 0, visibility: 'hidden' }}
+      className="why-slark-card pointer-events-none absolute inset-0 rounded-2xl border p-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)] sm:p-5"
+      style={{
+        opacity: 0,
+        visibility: 'hidden',
+        transformOrigin: 'center center',
+        borderColor: TEXT_PANEL.border,
+        backgroundColor: TEXT_PANEL.bg,
+      }}
     >
       <div
         className="inline-flex rounded-xl border p-2.5 sm:p-3"
         style={{
-          borderColor: `${feature.accent}22`,
-          backgroundColor: `${feature.accent}0d`,
           color: feature.accent,
+          borderColor: TEXT_PANEL.border,
+          backgroundColor: TEXT_PANEL.iconBg,
         }}
       >
         <FeatureIcon type={feature.type} />
       </div>
-      <h3 className="font-cyber mt-3 text-sm font-bold sm:mt-4 sm:text-base" style={{ color: C.text }}>
+      <h3 className="font-cyber mt-3 text-sm font-bold sm:mt-4 sm:text-base" style={{ color: TEXT_PANEL.text }}>
         {feature.title}
       </h3>
-      <p className="mt-2 text-xs leading-relaxed sm:text-sm" style={{ color: C.textMuted }}>
+      <p className="mt-2 text-xs leading-relaxed sm:text-sm" style={{ color: TEXT_PANEL.textMuted }}>
         {feature.body}
       </p>
     </article>
@@ -208,14 +242,13 @@ const FeatureCard = forwardRef(function FeatureCard({ feature, side }, ref) {
 
 /**
  * @param {object} props
- * @param {string} props.eyebrow
  * @param {string} props.title
  * @param {string} props.brandName
  * @param {string} [props.finaleTagline]
  * @param {string} [props.scrollHint]
  * @param {{ type: string, title: string, body: string, accent: string }[]} props.features
  */
-export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline, scrollHint, features }) {
+export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollHint, features }) {
   const sectionRef = useRef(/** @type {HTMLElement | null} */ (null));
   const stickyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const canvasRef = useRef(/** @type {HTMLCanvasElement | null} */ (null));
@@ -255,7 +288,7 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
     const sceneWrap = sceneWrapRef.current;
     const scrollHintEl = scrollHintRef.current;
 
-    gsap.set(cards, { autoAlpha: 0, x: 0 });
+    gsap.set(cards, { autoAlpha: 0, scale: 0.55, transformOrigin: 'center center' });
     if (finale) gsap.set(finale, { autoAlpha: 0, visibility: 'hidden' });
     if (finaleText) gsap.set(finaleText, { opacity: 0, visibility: 'hidden', scale: 0.94, y: 0, zIndex: 20 });
     if (finaleBelt) {
@@ -269,20 +302,41 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       const frame = finaleBelt.querySelector('.why-slark-finale-belt-frame');
       if (frame) gsap.set(frame, { opacity: 0 });
     }
-    if (finaleBelt) gsap.set(finaleBelt, { opacity: 0, visibility: 'hidden' });
+    if (finaleBelt) gsap.set(finaleBelt, { visibility: 'hidden', opacity: 1 });
     if (heading) gsap.set(heading, { autoAlpha: 0 });
     if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: 0 });
 
     const cardWindows = [
-      { in: 0.06, out: 0.28, fromX: isMobile ? 0 : -72 },
-      { in: 0.3, out: 0.52, fromX: isMobile ? 0 : 72 },
-      { in: 0.54, out: 0.76, fromX: isMobile ? 0 : 72 },
+      { in: 0.1, out: 0.32 },
+      { in: 0.34, out: 0.56 },
+      { in: 0.58, out: 0.66 },
     ];
+
+    function scaleFromSmall(t) {
+      if (t <= 0) return 0.55;
+      if (t >= 1) return 1;
+      const eased = 1 - (1 - t) ** 3;
+      return 0.55 + eased * 0.45;
+    }
+
+    function setCardMotion(card, alpha, { enterT = 1, exitT = 1 } = {}) {
+      let scale = 0.55;
+      if (alpha > 0) {
+        if (exitT < 1) scale = scaleFromSmall(exitT);
+        else if (enterT < 1) scale = scaleFromSmall(enterT);
+        else scale = 1;
+      }
+      gsap.set(card, {
+        autoAlpha: alpha,
+        scale,
+        transformOrigin: 'center center',
+      });
+    }
 
     function cardAlpha(p, win) {
       const fade = 0.05;
       if (p < win.in) return 0;
-      if (p < win.in + fade) return (p - win.in) / fade;
+      if (win.in > 0 && p < win.in + fade) return (p - win.in) / fade;
       if (p < win.out - fade) return 1;
       if (p < win.out) return (win.out - p) / fade;
       return 0;
@@ -297,17 +351,18 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
         const win = cardWindows[i];
         if (!card || !win) return;
         const alpha = cardAlpha(p, win);
-        const enterT = Math.min(1, Math.max(0, (p - win.in) / 0.08));
-        gsap.set(card, { autoAlpha: alpha, x: win.fromX * (1 - enterT) });
+        let enterT = Math.min(1, Math.max(0, (p - win.in) / 0.08));
+        const exitT = Math.min(1, Math.max(0, (win.out - p) / 0.08));
+        setCardMotion(card, alpha, { enterT, exitT });
       });
 
       if (heading) {
-        const headAlpha = p < 0.18 ? 1 : Math.max(0, 1 - (p - 0.18) / 0.14);
+        const headAlpha = p < 0.12 ? 1 : Math.max(0, 1 - (p - 0.12) / 0.1);
         gsap.set(heading, { autoAlpha: headAlpha });
       }
 
       if (finale) {
-        const inFinale = p >= 0.7;
+        const inFinale = p >= 0.65;
         gsap.set(finale, {
           autoAlpha: inFinale ? 1 : 0,
           visibility: inFinale ? 'visible' : 'hidden',
@@ -315,7 +370,7 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       }
 
       if (finaleText) {
-        const textT = Math.max(0, (p - 0.7) / 0.12);
+        const textT = Math.max(0, (p - 0.7) / 0.14);
         const textEased = 1 - (1 - Math.min(1, textT)) ** 3;
         const textVisible = p >= 0.7 && textEased > 0.01;
         gsap.set(finaleText, {
@@ -344,6 +399,11 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       globe.setProgress(0);
       if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: eased });
       if (heading) gsap.set(heading, { autoAlpha: eased });
+      cards.forEach((card) => {
+        if (!card) return;
+        gsap.set(card, { autoAlpha: 0, scale: 0.55, transformOrigin: 'center center' });
+      });
+      if (scrollHintEl) gsap.set(scrollHintEl, { autoAlpha: eased });
       if (finale) gsap.set(finale, { autoAlpha: 0, visibility: 'hidden' });
       if (finaleText) gsap.set(finaleText, { opacity: 0, visibility: 'hidden', scale: 0.94 });
       if (finaleBelt) applySlarkGlassBelt(finaleBelt, -1, { isMobile, reducedMotion });
@@ -351,7 +411,7 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
 
     function scrollLen() {
       const vh = scrollerEl?.clientHeight ?? window.innerHeight;
-      return isMobile ? vh * 3.6 : vh * 4.5;
+      return isMobile ? vh * 4.4 : vh * 5.4;
     }
 
     function layoutSection() {
@@ -365,8 +425,10 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
     function handleScrollProgress(raw) {
       if (raw < ENTRANCE_SHARE) {
         applyEntrance(raw / ENTRANCE_SHARE);
+      } else if (raw < ENTRANCE_SHARE + PAUSE_SHARE) {
+        showScene(0);
       } else {
-        showScene((raw - ENTRANCE_SHARE) / (1 - ENTRANCE_SHARE));
+        showScene((raw - ENTRANCE_SHARE - PAUSE_SHARE) / ANIM_SHARE);
       }
     }
 
@@ -406,40 +468,35 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
       sticky.style.height = '';
       globe.dispose();
     };
-  }, [features]);
+  }, [features, title]);
 
   return (
     <section id="features" ref={sectionRef} className="relative" style={{ backgroundColor: C.bg }}>
       <div ref={staticGridRef} hidden className="px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-6xl text-center">
-          <p className="font-cyber text-[10px] uppercase tracking-[0.4em]" style={{ color: C.primary }}>
-            {eyebrow}
-          </p>
-          <h2 className="font-cyber mt-3 text-2xl font-bold sm:text-3xl" style={{ color: C.text }}>
-            {title}
-          </h2>
+          <WhySlarkTitle title={title} className="text-3xl sm:text-5xl md:text-6xl" />
         </div>
         <div className="mx-auto mt-12 grid max-w-6xl gap-5 md:grid-cols-3">
           {features.map((feature) => (
             <article
               key={feature.title}
-              className="rounded-2xl border p-6"
-              style={{ borderColor: C.border, backgroundColor: C.bg }}
+              className="rounded-2xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)]"
+              style={{ borderColor: TEXT_PANEL.border, backgroundColor: TEXT_PANEL.bg }}
             >
               <div
                 className="inline-flex rounded-xl border p-3"
                 style={{
-                  borderColor: `${feature.accent}22`,
-                  backgroundColor: `${feature.accent}0d`,
                   color: feature.accent,
+                  borderColor: TEXT_PANEL.border,
+                  backgroundColor: TEXT_PANEL.iconBg,
                 }}
               >
                 <FeatureIcon type={feature.type} />
               </div>
-              <h3 className="font-cyber mt-5 text-base font-bold" style={{ color: C.text }}>
+              <h3 className="font-cyber mt-5 text-base font-bold" style={{ color: TEXT_PANEL.text }}>
                 {feature.title}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed" style={{ color: C.textMuted }}>
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: TEXT_PANEL.textMuted }}>
                 {feature.body}
               </p>
             </article>
@@ -449,47 +506,39 @@ export function WhySlarkScrollSection({ eyebrow, title, brandName, finaleTagline
 
       <div
         ref={stickyRef}
-        className="sticky top-0 z-10 flex w-full items-center justify-center overflow-hidden"
+        className="sticky top-0 z-10 flex w-full items-center justify-center overflow-x-hidden overflow-y-visible"
         style={{ backgroundColor: C.bg }}
       >
         <div
           ref={headingRef}
-          className="pointer-events-none absolute left-0 right-0 top-[8%] z-20 px-4 text-center sm:top-[10%]"
+          className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 px-4 text-center"
         >
-          <p
-            className="font-cyber text-[10px] uppercase tracking-[0.4em] sm:text-xs"
-            style={{ color: C.primary, textShadow: '0 1px 12px rgba(255,255,255,0.95)' }}
-          >
-            {eyebrow}
-          </p>
-          <h2
-            className="font-cyber mt-3 text-xl font-bold sm:text-3xl md:text-4xl"
-            style={{ color: C.text, textShadow: '0 2px 24px rgba(255,255,255,0.9)' }}
-          >
-            {title}
-          </h2>
+          <WhySlarkTitle title={title} className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl" />
         </div>
 
-        <div ref={sceneWrapRef} className="absolute inset-0 z-0">
+        <div ref={sceneWrapRef} className="why-slark-globe-layer absolute inset-0 z-0">
           <canvas ref={canvasRef} className="block h-full w-full" aria-hidden />
         </div>
 
-        {features.map((feature, i) => (
-          <FeatureCard
-            key={feature.title}
-            feature={feature}
-            side={i === 0 ? 'left' : 'right'}
-            ref={(el) => {
-              cardsRef.current[i] = el;
-            }}
-          />
-        ))}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[min(18rem,calc(100vw-2.5rem))] -translate-x-1/2 -translate-y-1/2 sm:w-72">
+          <div className="relative min-h-[10.5rem] sm:min-h-[11.5rem]">
+            {features.map((feature, i) => (
+              <FeatureCard
+                key={feature.title}
+                feature={feature}
+                ref={(el) => {
+                  cardsRef.current[i] = el;
+                }}
+              />
+            ))}
+          </div>
+        </div>
 
         <div
           ref={finaleRef}
-          className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4"
+          className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-visible px-4"
         >
-          <div className="why-slark-finale-wrap relative inline-block min-w-[min(82vw,22rem)] max-w-[min(92vw,40rem)] text-center sm:min-w-[min(78vw,32rem)] md:min-w-[min(72vw,38rem)]">
+          <div className="why-slark-finale-wrap relative inline-block min-h-[5.5rem] min-w-[min(82vw,22rem)] max-w-[min(92vw,40rem)] text-center sm:min-h-[6.5rem] sm:min-w-[min(78vw,32rem)] md:min-w-[min(72vw,38rem)]">
             <SlarkFinaleGlassBelt beltRef={finaleBeltRef} />
             <div ref={finaleTextRef} className="relative z-20 px-6 py-3 sm:px-10 sm:py-4">
               <h3

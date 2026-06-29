@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
+import siteIcon from '../../../assets/images/icon.webp';
 
 const NAV = [
   { href: '#features', labelKey: 'home.sectionFeatures' },
@@ -58,13 +59,15 @@ export function LandingHeader({ onGetStarted }) {
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 pr-16 sm:px-6 sm:pr-24">
         <Link to="/" className="group flex shrink-0 items-center gap-2.5">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#C62828]/20 bg-[#C62828]/10 font-cyber text-sm font-bold text-[#C62828]"
+          <img
+            src={siteIcon}
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-lg object-cover"
             aria-hidden
-          >
-            SL
-          </span>
-          <span className="font-cyber text-sm font-bold uppercase tracking-[0.12em] text-[#111827] sm:text-base">
+          />
+          <span className="font-cyber text-sm font-bold uppercase tracking-[0.12em] text-[#C62828] sm:text-base">
             {t('brand.name')}
           </span>
         </Link>
@@ -80,10 +83,10 @@ export function LandingHeader({ onGetStarted }) {
             </a>
           ))}
           <Link
-            to="/docs"
+            to="/about"
             className="rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#C62828]"
           >
-            {t('home.introCtaSecondary')}
+            {t('nav.about')}
           </Link>
         </nav>
 

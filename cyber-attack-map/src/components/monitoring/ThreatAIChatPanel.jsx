@@ -17,11 +17,12 @@ function msgId() {
 }
 
 export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
-  { className = '', variant = 'threat' },
+  { className = '', variant = 'threat', theme = 'light' },
   ref
 ) {
   const { t } = useI18n();
   const isLanding = variant === 'landing';
+  const isDark = theme === 'dark' && !isLanding;
   const title = isLanding ? t('home.landingAiChat.fab') : t('aiChat.title');
   const subtitle = isLanding ? '' : t('aiChat.subtitle');
   const emptyText = isLanding ? '' : t('aiChat.empty');
@@ -150,8 +151,12 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
 
   return (
     <section
-      className={`flex min-h-0 flex-col overflow-hidden bg-slark-bg ${
-        isLanding ? 'flex-1 rounded-none border-0 shadow-none' : `rounded-b-2xl border-x border-b border-slark-border shadow-slark ${className}`
+      className={`flex min-h-0 flex-col overflow-hidden ${
+        isLanding
+          ? 'flex-1 rounded-none border-0 bg-slark-bg shadow-none'
+          : isDark
+            ? `rounded-2xl border border-slate-700/60 bg-slark-dark text-slate-200 shadow-lg ${className}`
+            : `rounded-b-2xl border-x border-b border-slark-border bg-slark-bg shadow-slark ${className}`
       }`}
       aria-label={title}
     >
@@ -159,23 +164,27 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
       {!isLanding && <div className="h-1 w-full shrink-0 bg-slark-primary" />}
 
       {!isLanding && (
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slark-border px-4 py-3 sm:px-5">
+        <div className={`flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3 sm:px-5 ${isDark ? 'border-slate-600/50' : 'border-slark-border'}`}>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slark-primary opacity-40" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-slark-primary" />
               </span>
-              <h2 className="font-cyber text-sm font-bold uppercase tracking-[0.2em] text-slark-text">
+              <h2 className={`font-cyber text-sm font-bold uppercase tracking-[0.2em] ${isDark ? 'text-slate-100' : 'text-slark-text'}`}>
                 {title}
               </h2>
             </div>
-            <p className="mt-1 max-w-xl text-xs leading-relaxed text-slark-muted">{subtitle}</p>
+            <p className={`mt-1 max-w-xl text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slark-muted'}`}>{subtitle}</p>
           </div>
           <button
             type="button"
             onClick={onClear}
-            className="shrink-0 rounded-lg border border-slark-border bg-slark-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slark-text shadow-sm transition hover:bg-slark-bg"
+            className={`shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide shadow-sm transition ${
+              isDark
+                ? 'border-slate-600/50 bg-white/[0.05] text-slate-200 hover:bg-white/[0.08]'
+                : 'border-slark-border bg-slark-card text-slark-text hover:bg-slark-bg'
+            }`}
           >
             {t('aiChat.clear')}
           </button>
@@ -183,25 +192,39 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
       )}
 
       {!configured && (
-        <p className="shrink-0 border-b border-amber-300/80 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
+        <p
+          className={`shrink-0 border-b px-4 py-2.5 text-xs leading-relaxed ${
+            isDark
+              ? 'border-amber-500/30 bg-amber-950/40 text-amber-200'
+              : 'border-amber-300/80 bg-amber-50 text-amber-950'
+          }`}
+        >
           {t('aiChat.missingKeyHint')}
         </p>
       )}
 
       {error && (
-        <p className="shrink-0 border-b border-rose-300/80 bg-rose-50 px-4 py-2.5 font-mono text-xs text-rose-900">
+        <p
+          className={`shrink-0 border-b px-4 py-2.5 font-mono text-xs ${
+            isDark ? 'border-rose-500/30 bg-rose-950/40 text-rose-200' : 'border-rose-300/80 bg-rose-50 text-rose-900'
+          }`}
+        >
           {error}
         </p>
       )}
 
       <div
-        className={`thin-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto ${
-          isLanding ? 'px-3 py-4' : 'max-h-[min(52vh,28rem)] min-h-[11rem] px-4 py-4 sm:px-5'
+        className={`${isDark ? 'thin-scrollbar-dark' : 'thin-scrollbar'} flex min-h-0 flex-1 flex-col overflow-y-auto ${
+          isLanding ? 'px-3 py-4' : 'min-h-[11rem] px-4 py-4 sm:px-5'
         }`}
       >
         {messages.length === 0 && !loading && emptyText && (
-          <div className="rounded-xl border-2 border-dashed border-slark-border bg-slark-card px-4 py-8 text-center">
-            <p className="text-sm font-medium leading-relaxed text-slark-text">
+          <div
+            className={`rounded-xl border-2 border-dashed px-4 py-8 text-center ${
+              isDark ? 'border-slate-600/50 bg-white/[0.03]' : 'border-slark-border bg-slark-card'
+            }`}
+          >
+            <p className={`text-sm font-medium leading-relaxed ${isDark ? 'text-slate-200' : 'text-slark-text'}`}>
               {emptyText}
             </p>
           </div>
@@ -212,11 +235,15 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
               key={m.id}
               className={`rounded-xl border px-3.5 py-3 text-sm leading-relaxed shadow-sm ${
                 m.role === 'user'
-                  ? 'border-slark-primary/30 bg-slark-card text-slark-text'
-                  : 'border-slark-border bg-slark-bg text-slark-text'
+                  ? isDark
+                    ? 'border-slark-primary/35 bg-slark-primary/10 text-slate-100'
+                    : 'border-slark-primary/30 bg-slark-card text-slark-text'
+                  : isDark
+                    ? 'border-slate-600/50 bg-white/[0.04] text-slate-200'
+                    : 'border-slark-border bg-slark-bg text-slark-text'
               }`}
             >
-              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slark-muted">
+              <span className={`mb-1.5 block text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slark-muted'}`}>
                 {m.role === 'user' ? t('aiChat.roleUser') : t('aiChat.roleAssistant')}
               </span>
               <pre className="whitespace-pre-wrap break-words font-sans text-[13px]">{m.content}</pre>
@@ -250,7 +277,7 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
 
       <form
         onSubmit={onSubmit}
-        className={`shrink-0 border-t border-slark-border bg-slark-bg ${isLanding ? 'px-3 py-3' : 'space-y-2 px-4 py-4 sm:px-5'}`}
+        className={`shrink-0 border-t ${isLanding ? 'border-slark-border bg-slark-bg px-3 py-3' : isDark ? 'border-slate-600/50 bg-[#1a2332] space-y-2 px-4 py-4 sm:px-5' : 'border-slark-border bg-slark-bg space-y-2 px-4 py-4 sm:px-5'}`}
       >
         {isLanding ? (
           <div className="flex items-center gap-2">
@@ -276,10 +303,10 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
         ) : (
           <>
             <div>
-              <label htmlFor="threat-ai-question" className="block text-sm font-semibold text-slark-text">
+              <label htmlFor="threat-ai-question" className={`block text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slark-text'}`}>
                 {questionTitle}
               </label>
-              <p id="threat-ai-hint" className="mt-0.5 text-xs text-slark-muted">
+              <p id="threat-ai-hint" className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slark-muted'}`}>
                 {questionHint}
               </p>
             </div>
@@ -291,7 +318,11 @@ export const ThreatAIChatPanel = forwardRef(function ThreatAIChatPanel(
                 onChange={(e) => setInput(e.target.value)}
                 rows={3}
                 placeholder={placeholder}
-                className="min-h-[5.5rem] w-full resize-y rounded-xl border-2 border-slark-border bg-slark-bg px-4 py-3 font-sans text-sm text-slark-text shadow-inner placeholder:text-slark-muted focus:border-slark-primary focus:outline-none focus:ring-2 focus:ring-slark-primary/25"
+                className={`min-h-[5.5rem] w-full resize-y rounded-xl border-2 px-4 py-3 font-sans text-sm shadow-inner focus:border-slark-primary focus:outline-none focus:ring-2 focus:ring-slark-primary/25 ${
+                  isDark
+                    ? 'border-slate-600/50 bg-[#0f172a] text-slate-100 placeholder:text-slate-500'
+                    : 'border-slark-border bg-slark-bg text-slark-text placeholder:text-slark-muted'
+                }`}
                 disabled={loading}
               />
               <button

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
-import { jsPDF } from 'jspdf';
-import { CATEGORY_STYLE, THREAT_CATEGORY } from '../../constants/threatCategories.js';
+import { X } from 'lucide-react';
+import { CATEGORY_STYLE, THREAT_CATEGORY, threatCategoryLabelKey } from '../../constants/threatCategories.js';
+import { exportIncidentPdf } from '../../utils/exportIncidentPdf.js';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import { buildThreatReadoutText } from '../../utils/threatAiPrompt.js';
 import { describeAttackActivity } from '../../utils/describeAttackActivity.js';
@@ -10,18 +11,30 @@ function dash(value) {
   return value && String(value).trim() ? String(value).trim() : '—';
 }
 
-function DetailItem({ label, value, mono = false }) {
+function DetailItem({ label, value, mono = false, dark = false }) {
   return (
-    <div className="rounded-xl border border-slark-border bg-slark-bg px-3 py-2">
-      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slark-muted">{label}</p>
-      <p className={`mt-1 text-[12px] text-slark-text ${mono ? 'font-mono' : ''}`}>{value}</p>
+    <div
+      className={`rounded-xl border px-3 py-2 ${
+        dark ? 'border-slate-600/50 bg-white/[0.04]' : 'border-slark-border bg-slark-bg'
+      }`}
+    >
+      <p className={`text-[9px] font-semibold uppercase tracking-[0.16em] ${dark ? 'text-slate-400' : 'text-slark-muted'}`}>
+        {label}
+      </p>
+      <p className={`mt-1 text-[12px] ${mono ? 'font-mono' : ''} ${dark ? 'text-slate-200' : 'text-slark-text'}`}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function DetailSection({ title, children }) {
+function DetailSection({ title, children, dark = false }) {
   return (
-    <section className="rounded-2xl border border-slark-border bg-slark-card p-3">
+    <section
+      className={`rounded-2xl border p-3 ${
+        dark ? 'border-slate-600/50 bg-white/[0.03]' : 'border-slark-border bg-slark-card'
+      }`}
+    >
       <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-slark-primary">{title}</h3>
       <div className="mt-3">{children}</div>
     </section>
@@ -33,10 +46,12 @@ function DetailSection({ title, children }) {
  *   attack: object | null;
  *   onClose: () => void;
  *   onSendToAI?: () => void;
+ *   variant?: 'light' | 'dark';
  * }} props
  */
-export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
+export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'light' }) {
   const { t, locale } = useI18n();
+  const dark = variant === 'dark';
   const loc = locale === 'id' ? 'id' : 'en';
   const logText = useMemo(() => (attack ? buildAttackLogLines(attack).join('\n') : ''), [attack]);
 
@@ -63,49 +78,66 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
     protectedSite: t('detail.protectedSite'),
   });
 
-  function handleExportPdf() {
-    const pdf = new jsPDF({
-      unit: 'pt',
-      format: 'a4',
-    });
-    const margin = 40;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    let y = margin;
+  async function handleExportPdf() {
+    const generatedAt = new Date().toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false });
 
-    const writeBlock = (text, opts = {}) => {
-      const fontSize = opts.fontSize || 10;
-      const spacing = opts.spacing || 14;
-      pdf.setFont('courier', opts.bold ? 'bold' : 'normal');
-      pdf.setFontSize(fontSize);
-      const lines = pdf.splitTextToSize(String(text), pageWidth - margin * 2);
-      for (const line of lines) {
-        if (y > pageHeight - margin) {
-          pdf.addPage();
-          y = margin;
-        }
-        pdf.text(line, margin, y);
-        y += spacing;
-      }
-    };
-
-    writeBlock(`${t('incidentModal.title')} - ${attack.requestId || attack.incidentId || attack.id}`, {
-      fontSize: 14,
-      spacing: 18,
-      bold: true,
+    await exportIncidentPdf({
+      attack,
+      logText,
+      readout,
+      activity,
+      categoryLabel: t(threatCategoryLabelKey(attack.category)),
+      labels: {
+        brandName: t('brand.name'),
+        reportTitle: t('incidentModal.pdfReport'),
+        generatedAt: `${t('incidentModal.pdfGenerated')}: ${generatedAt}`,
+        footerBy: t('incidentModal.pdfFooterBy'),
+        page: t('incidentModal.pdfPage'),
+        title: t('incidentModal.title'),
+        subtitle: t('incidentModal.subtitle'),
+        overview: t('incidentModal.overview'),
+        attacker: t('incidentModal.attacker'),
+        attackerValue: dash(attack.attackerIp) || t('incidentModal.unknownIp'),
+        region: t('incidentModal.region'),
+        regionValue: dash(attack.sourceLabel),
+        time: t('incidentModal.time'),
+        timeValue: new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false }),
+        geoLocation: t('incidentModal.geoLocation'),
+        geoLocationValue: dash(attack.geoMeta?.location || attack.sourceLabel),
+        geoCoordinates: t('incidentModal.geoCoordinates'),
+        geoCoordinatesValue: dash(attack.geoMeta?.coordinates),
+        requestBlock: t('incidentModal.requestBlock'),
+        method: t('incidentModal.method'),
+        methodValue: dash(attack.method),
+        path: t('incidentModal.path'),
+        pathValue: dash(attack.path),
+        userAgentValue: dash(attack.userAgent),
+        forwardedForValue: dash(attack.forwardedFor),
+        detectionBlock: t('incidentModal.detectionBlock'),
+        activity: t('incidentModal.activity'),
+        target: t('incidentModal.target'),
+        targetValue: dash(attack.targetService || attack.targetLabel),
+        detectType: t('incidentModal.detectType'),
+        detectTypeValue: dash(attack.detectType || attack.detection),
+        confidence: t('incidentModal.confidence'),
+        confidenceValue: formatAttackConfidence(attack.detectConfidence),
+        mitigation: t('incidentModal.mitigation'),
+        mitigationValue: dash(attack.mitigation || attack.action),
+        blocked: t('incidentModal.blocked'),
+        blockedValue: String(Boolean(attack.blocked)),
+        responseBlock: t('incidentModal.responseBlock'),
+        statusCode: t('incidentModal.statusCode'),
+        statusCodeValue: dash(attack.responseStatus),
+        responseTime: t('incidentModal.responseTime'),
+        responseTimeValue: dash(attack.responseTimeMs),
+        requests1m: t('incidentModal.requests1m'),
+        requests1mValue: dash(attack.requestsLast1m),
+        intelBlock: t('incidentModal.intelBlock'),
+        ispValue: dash(attack.ipIntelIsp),
+        logTitle: t('feed.logTitle'),
+        technical: t('incidentModal.technical'),
+      },
     });
-    y += 6;
-    writeBlock(`${t('incidentModal.subtitle')} | ${new Date(attack.createdAt).toISOString()}`, {
-      fontSize: 9,
-      spacing: 12,
-    });
-    y += 10;
-    writeBlock(logText, { fontSize: 9, spacing: 12 });
-    y += 10;
-    writeBlock(readout, { fontSize: 8, spacing: 10 });
-
-    const safeId = String(attack.requestId || attack.incidentId || attack.id || 'incident').replace(/[^\w.-]+/g, '_');
-    pdf.save(`incident-${safeId}.pdf`);
   }
 
   return (
@@ -121,105 +153,116 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
         aria-label={t('incidentModal.close')}
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slark-border bg-slark-bg shadow-slark-lg">
-        <div className="flex items-start justify-between gap-3 border-b border-slark-border px-4 py-3">
+      <div
+        className={`relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border shadow-slark-lg ${
+          dark ? 'border-slate-600/60 bg-slark-dark text-slate-200' : 'border-slark-border bg-slark-bg'
+        }`}
+      >
+        <div className={`flex items-start justify-between gap-3 border-b px-4 py-3 ${dark ? 'border-slate-600/50' : 'border-slark-border'}`}>
           <div className="min-w-0">
-            <h2 id="incident-modal-title" className="font-cyber text-sm font-bold tracking-wide text-slark-text">
+            <h2 id="incident-modal-title" className={`font-cyber text-sm font-bold tracking-wide ${dark ? 'text-slate-100' : 'text-slark-text'}`}>
               {t('incidentModal.title')}
             </h2>
-            <p className="mt-1 text-[10px] text-slark-muted">{t('incidentModal.subtitle')}</p>
+            <p className={`mt-1 text-[10px] ${dark ? 'text-slate-400' : 'text-slark-muted'}`}>{t('incidentModal.subtitle')}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className={`rounded border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${cat.badgeClass}`}>
-              {cat.shortLabel}
-            </span>
-            <button
-              type="button"
-              onClick={handleExportPdf}
-              className="rounded-lg border border-slark-primary/30 bg-slark-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
-            >
-              {t('incidentModal.exportPdf')}
-            </button>
+            <div className="flex items-center gap-2 -translate-x-2 sm:-translate-x-3">
+              <span className={`rounded border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${cat.badgeClass}`}>
+                {t(threatCategoryLabelKey(attack.category))}
+              </span>
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="rounded-lg border border-slark-primary/30 bg-slark-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
+              >
+                {t('incidentModal.exportPdf')}
+              </button>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slark-border px-2 py-1 text-xs text-slark-muted hover:bg-slark-card"
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                dark
+                  ? 'border-rose-500/25 bg-rose-500/10 text-rose-300 hover:border-rose-500/40 hover:bg-rose-500/20 hover:text-rose-200'
+                  : 'border-rose-200/80 bg-rose-50 text-rose-600 hover:border-rose-300 hover:bg-rose-100'
+              }`}
+              aria-label={t('incidentModal.close')}
             >
-              {t('incidentModal.close')}
+              <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
             </button>
           </div>
         </div>
 
-        <div className="thin-scrollbar flex-1 overflow-y-auto px-4 py-4">
+        <div className={`thin-scrollbar${dark ? '-dark' : ''} flex-1 overflow-y-auto px-4 py-4`}>
           <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
             <div className="space-y-4">
-              <DetailSection title={t('incidentModal.overview')}>
+              <DetailSection title={t('incidentModal.overview')} dark={dark}>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailItem label={t('incidentModal.attacker')} value={dash(attack.attackerIp) || t('incidentModal.unknownIp')} mono />
-                  <DetailItem label={t('incidentModal.region')} value={dash(attack.sourceLabel)} />
-                  <DetailItem label={t('incidentModal.requestId')} value={dash(attack.requestId || attack.incidentId || attack.id)} mono />
-                  <DetailItem label={t('incidentModal.time')} value={new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false })} />
-                  <DetailItem label={t('incidentModal.geoLocation')} value={dash(attack.geoMeta?.location || attack.sourceLabel)} />
-                  <DetailItem label={t('incidentModal.geoCoordinates')} value={dash(attack.geoMeta?.coordinates)} mono />
-                  <DetailItem label={t('incidentModal.geoAccuracy')} value={dash(attack.geoMeta?.accuracy)} mono />
-                  <DetailItem label={t('incidentModal.geoNote')} value={dash(attack.geoMeta?.note)} />
+                  <DetailItem dark={dark} label={t('incidentModal.attacker')} value={dash(attack.attackerIp) || t('incidentModal.unknownIp')} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.region')} value={dash(attack.sourceLabel)} />
+                  <DetailItem dark={dark} label={t('incidentModal.requestId')} value={dash(attack.requestId || attack.incidentId || attack.id)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.time')} value={new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false })} />
+                  <DetailItem dark={dark} label={t('incidentModal.geoLocation')} value={dash(attack.geoMeta?.location || attack.sourceLabel)} />
+                  <DetailItem dark={dark} label={t('incidentModal.geoCoordinates')} value={dash(attack.geoMeta?.coordinates)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.geoAccuracy')} value={dash(attack.geoMeta?.accuracy)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.geoNote')} value={dash(attack.geoMeta?.note)} />
                 </div>
               </DetailSection>
 
-              <DetailSection title={t('incidentModal.requestBlock')}>
+              <DetailSection title={t('incidentModal.requestBlock')} dark={dark}>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailItem label={t('incidentModal.method')} value={dash(attack.method)} mono />
-                  <DetailItem label={t('incidentModal.path')} value={dash(attack.path)} mono />
-                  <DetailItem label="User-Agent" value={dash(attack.userAgent)} mono />
-                  <DetailItem label="X-Forwarded-For" value={dash(attack.forwardedFor)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.method')} value={dash(attack.method)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.path')} value={dash(attack.path)} mono />
+                  <DetailItem dark={dark} label="User-Agent" value={dash(attack.userAgent)} mono />
+                  <DetailItem dark={dark} label="X-Forwarded-For" value={dash(attack.forwardedFor)} mono />
                 </div>
               </DetailSection>
 
-              <DetailSection title={t('incidentModal.detectionBlock')}>
+              <DetailSection title={t('incidentModal.detectionBlock')} dark={dark}>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailItem label={t('incidentModal.activity')} value={activity} />
-                  <DetailItem label={t('incidentModal.target')} value={dash(attack.targetService || attack.targetLabel)} />
-                  <DetailItem label={t('incidentModal.detectType')} value={dash(attack.detectType || attack.detection)} mono />
-                  <DetailItem label={t('incidentModal.confidence')} value={formatAttackConfidence(attack.detectConfidence)} mono />
-                  <DetailItem label={t('incidentModal.authStatus')} value={dash(attack.authStatus)} mono />
-                  <DetailItem label={t('incidentModal.mitigation')} value={dash(attack.mitigation || attack.action)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.activity')} value={activity} />
+                  <DetailItem dark={dark} label={t('incidentModal.target')} value={dash(attack.targetService || attack.targetLabel)} />
+                  <DetailItem dark={dark} label={t('incidentModal.detectType')} value={dash(attack.detectType || attack.detection)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.confidence')} value={formatAttackConfidence(attack.detectConfidence)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.authStatus')} value={dash(attack.authStatus)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.mitigation')} value={dash(attack.mitigation || attack.action)} mono />
                 </div>
               </DetailSection>
 
-              <DetailSection title={t('incidentModal.responseBlock')}>
+              <DetailSection title={t('incidentModal.responseBlock')} dark={dark}>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <DetailItem label={t('incidentModal.statusCode')} value={dash(attack.responseStatus)} mono />
-                  <DetailItem label={t('incidentModal.responseTime')} value={dash(attack.responseTimeMs)} mono />
-                  <DetailItem label={t('incidentModal.requests1m')} value={dash(attack.requestsLast1m)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.statusCode')} value={dash(attack.responseStatus)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.responseTime')} value={dash(attack.responseTimeMs)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.requests1m')} value={dash(attack.requestsLast1m)} mono />
                 </div>
               </DetailSection>
             </div>
 
             <div className="space-y-4">
-              <DetailSection title={t('feed.logTitle')}>
-                <pre className="thin-scrollbar max-h-[26rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slark-border bg-slark-dark p-3 font-mono text-[10px] leading-relaxed text-slark-bg">
+              <DetailSection title={t('feed.logTitle')} dark={dark}>
+                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[26rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[10px] leading-relaxed ${dark ? 'border-slate-600/50 bg-black/30 text-slate-200' : 'border-slark-border bg-slark-dark text-slark-bg'}`}>
                   {logText}
                 </pre>
               </DetailSection>
 
-              <DetailSection title={t('incidentModal.technical')}>
-                <pre className="thin-scrollbar max-h-[18rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slark-border bg-slark-card p-3 font-mono text-[9px] leading-relaxed text-slark-dark">
+              <DetailSection title={t('incidentModal.technical')} dark={dark}>
+                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[18rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[9px] leading-relaxed ${dark ? 'border-slate-600/50 bg-white/[0.04] text-slate-200' : 'border-slark-border bg-slark-card text-slark-dark'}`}>
                   {readout}
                 </pre>
               </DetailSection>
 
-              <DetailSection title={t('incidentModal.intelBlock')}>
+              <DetailSection title={t('incidentModal.intelBlock')} dark={dark}>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <DetailItem label="ISP" value={dash(attack.ipIntelIsp)} />
-                  <DetailItem label={t('incidentModal.blocked')} value={String(Boolean(attack.blocked))} mono />
+                  <DetailItem dark={dark} label="ISP" value={dash(attack.ipIntelIsp)} />
+                  <DetailItem dark={dark} label={t('incidentModal.blocked')} value={String(Boolean(attack.blocked))} mono />
                 </div>
               </DetailSection>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slark-border bg-slark-card px-4 py-3">
-          {onSendToAI && (
+        {onSendToAI ? (
+          <div className={`flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3 ${dark ? 'border-slate-600/50 bg-[#1a2332]' : 'border-slark-border bg-slark-card'}`}>
             <button
               type="button"
               onClick={onSendToAI}
@@ -227,22 +270,8 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI }) {
             >
               {t('detail.sendToAI')}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            className="rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
-          >
-            {t('incidentModal.exportPdf')}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slark-border px-4 py-2 text-[11px] font-semibold text-slark-text hover:bg-slark-bg"
-          >
-            {t('incidentModal.close')}
-          </button>
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

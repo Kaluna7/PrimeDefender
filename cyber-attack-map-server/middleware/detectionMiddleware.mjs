@@ -6,6 +6,22 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getCountryCentroid } from '../ingest/geoCentroid.mjs';
+import {
+  AUTH_BYPASS_RULES,
+  BEHAVIOR_RATE_DEFAULTS,
+  classifyUaHit,
+  CMD_INJECTION_RULES,
+  DEFAULT_UA_BLOCK,
+  detectBotActivity,
+  FILE_INCLUSION_RULES,
+  LOGIN_PATHS,
+  PATH_TRAVERSAL_RULES,
+  SCANNER_PATH_RULES,
+  SENSITIVE_SCAN_PATHS,
+  SQLI_RULES,
+  SUSPICIOUS_REQUEST_RULES,
+  XSS_RULES,
+} from './detectionRules.mjs';
 
 const DDOS_VECTOR_APP = 'application';
 const SAMPLE_LIMIT = 8192;
@@ -16,116 +32,9 @@ const REQUEST_COUNT_WINDOW_MS = 60_000;
 const BUCKET_IDLE_TTL_MS = 15 * 60_000;
 const HOUSEKEEPING_EVERY = 512;
 const STATIC_ASSET_RE = /\.(?:avif|bmp|css|gif|ico|jpeg|jpg|js|json|map|mp3|mp4|png|svg|txt|webm|webp|woff2?)$/i;
-const LOGIN_PATHS = ['/login', '/signin', '/auth', '/api/login', '/api/auth', '/admin/login'];
-const SENSITIVE_SCAN_PATHS = [
-  '/wp-admin',
-  '/wp-login.php',
-  '/phpmyadmin',
-  '/.env',
-  '/.git',
-  '/server-status',
-  '/debug',
-  '/actuator',
-  '/vendor/phpunit',
-  '/boaform',
-];
 const GEO_CACHE = new Map();
 const rateBuckets = new Map();
 let housekeepingCounter = 0;
-
-const SQLI_RULES = [
-  { re: /'\s*or\s+['"]?\d*['"]?\s*=\s*['"]?\d*/i, id: 'or_tautology_quote' },
-  { re: /'\s*or\s+['"]?1['"]?\s*=\s*['"]?1/i, id: 'or_1_1' },
-  { re: /--[\s#]/i, id: 'sql_comment' },
-  { re: /\bunion\s+[\w*(),\s]{0,80}\bselect\b/i, id: 'union_select' },
-  { re: /\bselect\s+.{1,120}\bfrom\b/is, id: 'select_from' },
-  { re: /\binto\s+outfile\b/i, id: 'into_outfile' },
-  { re: /\binformation_schema\.(tables|columns)\b/i, id: 'info_schema' },
-  { re: /\bsleep\s*\(\s*\d+/i, id: 'sleep_fn' },
-  { re: /\bbenchmark\s*\(/i, id: 'benchmark' },
-  { re: /\bwaitfor\s+delay\b/i, id: 'waitfor_delay' },
-  { re: /\bor\s+['"]?\d+['"]?\s*=\s*['"]?\d+/i, id: 'or_tautology' },
-  { re: /'\s*or\s+'\d+'\s*=\s*'/i, id: 'or_string_tautology' },
-  { re: /\bexec\s*\(\s*xp_/i, id: 'mssql_exec' },
-  { re: /;\s*(drop|delete|truncate)\s+(table|database)\b/i, id: 'destructive' },
-  { re: /\bload_file\s*\(/i, id: 'load_file' },
-  { re: /\bpg_sleep\s*\(/i, id: 'pg_sleep' },
-];
-
-const XSS_RULES = [
-  { re: /<\s*script\b/i, id: 'script_tag' },
-  { re: /<\s*\/\s*script\b/i, id: 'close_script' },
-  { re: /<\s*script[^>]*>\s*alert\s*\(/i, id: 'script_alert' },
-  { re: /javascript\s*:/i, id: 'javascript_uri' },
-  { re: /vbscript\s*:/i, id: 'vbscript_uri' },
-  { re: /data\s*:\s*text\/html/i, id: 'data_html' },
-  { re: /<\s*[^>]{0,120}\bon\w+\s*=\s*['"]?/i, id: 'event_handler' },
-  { re: /<\s*iframe\b/i, id: 'iframe_tag' },
-  { re: /<\s*object\b/i, id: 'object_tag' },
-  { re: /<\s*embed\b/i, id: 'embed_tag' },
-  { re: /<\s*svg\b[^>]{0,200}\bon\w+/i, id: 'svg_onhandler' },
-  { re: /\beval\s*\(\s*['"`]/i, id: 'eval_literal' },
-  { re: /String\.fromCharCode\s*\(/i, id: 'from_char_code' },
-  { re: /document\.(cookie|write|domain)\b/i, id: 'document_sink' },
-  { re: /window\.(location|document)\b/i, id: 'window_sink' },
-  { re: /\balert\s*\(\s*['"\d]/i, id: 'alert_probe' },
-  { re: /\b(?:prompt|confirm)\s*\(/i, id: 'dialog_probe' },
-  { re: /\bconsole\.log\s*\(/i, id: 'console_probe' },
-  { re: /<\s*img\b[^>]{0,120}\bonerror\b/i, id: 'img_onerror' },
-  { re: /%3[Cc]\s*script/i, id: 'encoded_script' },
-  { re: /\\x3c\s*script/i, id: 'hex_script' },
-];
-
-const PATH_TRAVERSAL_RULES = [
-  { re: /\.\.[\/\\]/, id: 'dot_dot_slash' },
-  { re: /%2e%2e(?:%2f|%5c)|%252e%252e/i, id: 'encoded_traversal' },
-  { re: /etc\/passwd|etc%2fpasswd|win\.ini/i, id: 'sensitive_file' },
-];
-
-const CMD_INJECTION_RULES = [
-  { re: /[;&]\s*(ls|cat|rm|wget|curl|nc\b|netcat|bash|sh\b|cmd\.exe|powershell|ping|whoami|id)\b/i, id: 'shell_metachar' },
-  { re: /&&\s*\w+/, id: 'and_and_cmd' },
-  { re: /\|\s*(?:cat|ls|sh|bash|nc\b|wget|curl)\b/i, id: 'pipe_cmd' },
-  { re: /`[^`\n]{1,120}`/, id: 'backtick' },
-  { re: /\$\([^)\n]{1,80}\)/, id: 'dollar_subshell' },
-];
-
-const FILE_INCLUSION_RULES = [
-  { re: /\b(?:file|page|include|template|view|module|lang|path|doc|folder)=.{0,160}(?:\.\.[\/\\]|%2e%2e|etc\/passwd|win\.ini)/i, id: 'local_file' },
-  { re: /\b(?:file|page|include|template|view|module|lang|path)=.{0,120}(?:https?:\/\/|ftp:\/\/|php:\/\/|file:\/\/|zip:\/\/|phar:\/\/)/i, id: 'remote_or_wrapper' },
-];
-
-const AUTH_BYPASS_RULES = [
-  { re: /\b(?:x-original-url|x-rewrite-url)\b/i, id: 'rewrite_override' },
-  { re: /\b(?:x-http-method-override)\s*[:=]\s*(?:put|patch|delete)\b/i, id: 'method_override' },
-  { re: /\b(?:role|isadmin|is_admin|admin|access_level|scope|impersonate|sudo)\s*[:=]\s*(?:1|true|admin|root|superuser)\b/i, id: 'privilege_param' },
-  { re: /\b(?:\/admin(?:\/|$)|\/internal(?:\/|$)|\/private(?:\/|$)|\/actuator(?:\/|$)|\/debug(?:\/|$))\b/i, id: 'privileged_path' },
-];
-
-const SUSPICIOUS_REQUEST_RULES = [
-  { re: /%00|\\0/, id: 'null_byte' },
-  { re: /%25(?:32|33|34|35|36|37|38|39)/i, id: 'double_encoded' },
-  { re: /\b(?:\*\/\*|\.\.\/\.\.\/|%2f%2f|\/\/\/|__proto__|constructor\.)/i, id: 'malformed_probe' },
-  { re: /\b(?:trace|track)\b/i, id: 'unsafe_method_probe' },
-];
-
-const SCANNER_PATH_RULES = [
-  { re: /^\/(?:wp-admin|wp-login\.php)(?:\/|$)/i, id: 'wp_probe' },
-  { re: /^\/(?:phpmyadmin|pma)(?:\/|$)/i, id: 'phpmyadmin_probe' },
-  { re: /^\/(?:\.env|\.git|\.svn|\.hg)(?:\/|$)/i, id: 'secrets_probe' },
-  { re: /^\/(?:server-status|actuator|debug|console)(?:\/|$)/i, id: 'admin_probe' },
-  { re: /^\/(?:vendor\/phpunit|boaform|cgi-bin|jenkins)(?:\/|$)/i, id: 'framework_probe' },
-];
-
-const DEFAULT_UA_BLOCK = [
-  { re: /sqlmap/i, id: 'sqlmap' },
-  { re: /nikto/i, id: 'nikto' },
-  { re: /^curl\//i, id: 'curl' },
-  { re: /python-requests/i, id: 'python_requests' },
-  { re: /^Go-http-client/i, id: 'go_http' },
-  { re: /masscan|nmap|zgrab|wpscan|acunetix/i, id: 'scanner' },
-  { re: /headless|phantomjs|playwright|puppeteer/i, id: 'automation' },
-];
 
 function defaultSkip(req) {
   const method = (req.method || 'GET').toUpperCase();
@@ -176,14 +85,17 @@ function isPrivateOrReservedIp(ip) {
 function extractSourceGeoOverride(req) {
   const headers = req.headers || {};
   const latRaw =
+    headers['x-slark-source-lat'] ??
     headers['x-prime-source-lat'] ??
     headers['x-attacker-lat'] ??
     headers['x-source-lat'];
   const lonRaw =
+    headers['x-slark-source-lon'] ??
     headers['x-prime-source-lon'] ??
     headers['x-attacker-lon'] ??
     headers['x-source-lon'];
   const labelRaw =
+    headers['x-slark-source-label'] ??
     headers['x-prime-source-label'] ??
     headers['x-attacker-label'] ??
     headers['x-source-label'];
@@ -230,6 +142,23 @@ function decodeSample(text) {
   } catch {
     return String(text);
   }
+}
+
+function decodeDeep(text, passes = 3) {
+  let out = String(text ?? '');
+  for (let i = 0; i < passes; i += 1) {
+    const next = decodeSample(out);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+function decodeDeepSample(text) {
+  const raw = String(text ?? '');
+  const once = decodeSample(raw);
+  const deep = decodeDeep(raw);
+  return `${raw}\n${once}\n${deep}`.slice(0, SAMPLE_LIMIT);
 }
 
 function sliceText(value, limit) {
@@ -280,34 +209,34 @@ function collectScanContext(req) {
 }
 
 export function detectSqliInText(text) {
-  return runRules(text, SQLI_RULES, decodeSample);
+  return runRules(text, SQLI_RULES, decodeDeepSample);
 }
 
 export function detectXssInText(text) {
-  return runRules(text, XSS_RULES, decodeSample);
+  return runRules(text, XSS_RULES, decodeDeepSample);
 }
 
 export function detectPathTraversalInText(text) {
   if (!text || typeof text !== 'string') return null;
   const raw = text.slice(0, PATH_SAMPLE_LIMIT);
-  const decoded = decodeSample(raw);
+  const decoded = decodeDeep(raw);
   return runRules(`${raw}\n${decoded}`, PATH_TRAVERSAL_RULES, (v) => v, PATH_SAMPLE_LIMIT * 2);
 }
 
 export function detectCmdInjectionInText(text) {
-  return runRules(text, CMD_INJECTION_RULES, decodeSample);
+  return runRules(text, CMD_INJECTION_RULES, decodeDeepSample);
 }
 
 export function detectFileInclusionInText(text) {
-  return runRules(text, FILE_INCLUSION_RULES, decodeSample);
+  return runRules(text, FILE_INCLUSION_RULES, decodeDeepSample);
 }
 
 export function detectAuthBypassInText(text) {
-  return runRules(text, AUTH_BYPASS_RULES, decodeSample);
+  return runRules(text, AUTH_BYPASS_RULES, decodeDeepSample);
 }
 
 export function detectSuspiciousRequestInText(text) {
-  return runRules(text, SUSPICIOUS_REQUEST_RULES, decodeSample);
+  return runRules(text, SUSPICIOUS_REQUEST_RULES, decodeDeepSample);
 }
 
 export function detectScannerPath(text) {
@@ -573,6 +502,7 @@ async function geoLookup(ip, siteRegion) {
           lon: j.longitude,
           label: formatGeoLabel([j.city, j.region, j.country], clean),
           country: j.country,
+          countryCode: j.country_code,
           region: j.region,
           city: j.city,
           isp: j.connection?.isp,
@@ -586,6 +516,7 @@ async function geoLookup(ip, siteRegion) {
           lon: j.longitude,
           label: formatGeoLabel([j.city, j.region, j.country_name], clean),
           country: j.country_name,
+          countryCode: j.country_code,
           region: j.region,
           city: j.city,
           isp: j.org,
@@ -593,7 +524,7 @@ async function geoLookup(ip, siteRegion) {
       }),
     () =>
       fetchGeoCandidate(
-        `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,lat,lon,city,regionName,country`,
+        `http://ip-api.com/json/${encodeURIComponent(clean)}?fields=status,lat,lon,city,regionName,country,countryCode`,
         (j) => {
           if (j?.status !== 'success') return null;
           return {
@@ -601,6 +532,7 @@ async function geoLookup(ip, siteRegion) {
             lon: j.lon,
             label: formatGeoLabel([j.city, j.regionName, j.country], clean),
             country: j.country,
+            countryCode: j.countryCode,
             region: j.regionName,
             city: j.city,
             isp: j.isp,
@@ -624,6 +556,8 @@ async function geoLookup(ip, siteRegion) {
           coordinates: coordString(used.lat, used.lon),
           accuracy: centroid ? 'LOW' : 'MEDIUM',
           note: centroid ? 'Estimated from ISP location using country centroid' : 'Estimated from IP geolocation',
+          country: hit.country,
+          countryCode: hit.countryCode,
         },
       };
       break;
@@ -674,34 +608,34 @@ export function createSecurityDetectionMiddleware(opts) {
   const geo = opts.geoLookup !== false;
   const ddosCfg = {
     enabled: opts.ddos?.enabled !== false,
-    maxPerWindow: opts.ddos?.maxPerWindow ?? 120,
-    windowMs: opts.ddos?.windowMs ?? 10_000,
+    maxPerWindow: opts.ddos?.maxPerWindow ?? BEHAVIOR_RATE_DEFAULTS.ddos.maxPerWindow,
+    windowMs: opts.ddos?.windowMs ?? BEHAVIOR_RATE_DEFAULTS.ddos.windowMs,
     mode: normalizeMode(opts.ddos),
   };
   const bruteCfg = {
     enabled: opts.bruteForce?.enabled !== false,
-    maxPerWindow: opts.bruteForce?.maxPerWindow ?? 10,
-    windowMs: opts.bruteForce?.windowMs ?? 60_000,
+    maxPerWindow: opts.bruteForce?.maxPerWindow ?? BEHAVIOR_RATE_DEFAULTS.bruteForce.maxPerWindow,
+    windowMs: opts.bruteForce?.windowMs ?? BEHAVIOR_RATE_DEFAULTS.bruteForce.windowMs,
     paths: opts.bruteForce?.paths,
     methods: opts.bruteForce?.methods,
     mode: normalizeMode(opts.bruteForce),
   };
   const scannerCfg = {
     enabled: opts.scanner?.enabled !== false,
-    maxPerWindow: opts.scanner?.maxPerWindow ?? 12,
-    windowMs: opts.scanner?.windowMs ?? 60_000,
+    maxPerWindow: opts.scanner?.maxPerWindow ?? BEHAVIOR_RATE_DEFAULTS.scanner.maxPerWindow,
+    windowMs: opts.scanner?.windowMs ?? BEHAVIOR_RATE_DEFAULTS.scanner.windowMs,
     mode: normalizeMode(opts.scanner),
   };
   const botCfg = {
     enabled: opts.botActivity?.enabled !== false,
-    maxPerWindow: opts.botActivity?.maxPerWindow ?? 40,
-    windowMs: opts.botActivity?.windowMs ?? 30_000,
+    maxPerWindow: opts.botActivity?.maxPerWindow ?? BEHAVIOR_RATE_DEFAULTS.botActivity.maxPerWindow,
+    windowMs: opts.botActivity?.windowMs ?? BEHAVIOR_RATE_DEFAULTS.botActivity.windowMs,
     mode: normalizeMode(opts.botActivity),
   };
   const suspiciousReqCfg = {
     enabled: opts.suspiciousRequest?.enabled !== false,
-    maxPerWindow: opts.suspiciousRequest?.maxPerWindow ?? 8,
-    windowMs: opts.suspiciousRequest?.windowMs ?? 60_000,
+    maxPerWindow: opts.suspiciousRequest?.maxPerWindow ?? BEHAVIOR_RATE_DEFAULTS.suspiciousRequest.maxPerWindow,
+    windowMs: opts.suspiciousRequest?.windowMs ?? BEHAVIOR_RATE_DEFAULTS.suspiciousRequest.windowMs,
     mode: normalizeMode(opts.suspiciousRequest),
   };
   const sqliCfg = { enabled: opts.sqli?.enabled !== false, mode: normalizeMode(opts.sqli) };
@@ -865,7 +799,11 @@ export function createSecurityDetectionMiddleware(opts) {
     recordActivitySample(`req:${context.ip}`, context.startedAt);
 
     const uaHit = uaCfg.enabled ? detectSuspiciousUserAgent(context.ua, uaCfg) : null;
+    const uaKind = uaHit ? classifyUaHit(uaHit) : null;
+    const botBehaviorHit = botCfg.enabled ? detectBotActivity(context) : null;
     const scannerPathHit = scannerCfg.enabled ? detectScannerPath(context.path) : null;
+    const sensitivePathHit =
+      scannerCfg.enabled && SENSITIVE_SCAN_PATHS.some((p) => pathMatches(context.path, p));
     const suspiciousHit = suspiciousReqCfg.enabled
       ? detectSuspiciousRequestInText([context.pathQuery, context.headerBlob, sliceText(context.ua, 256)].join('\n'))
       : null;
@@ -923,7 +861,9 @@ export function createSecurityDetectionMiddleware(opts) {
       }
     }
 
-    const scannerLike = Boolean(scannerPathHit || (uaHit && ['sqlmap', 'nikto', 'scanner'].includes(uaHit.id)));
+    const scannerLike = Boolean(
+      scannerPathHit || sensitivePathHit || uaKind === 'scanner' || (uaHit && uaKind === 'crawler'),
+    );
     if (scannerLike && scannerCfg.enabled) {
       const bucketKey = `scanner:${context.ip}`;
       const rate = recordRateWindow(bucketKey, scannerCfg);
@@ -933,13 +873,13 @@ export function createSecurityDetectionMiddleware(opts) {
             statusCode: 429,
             retryAfterSec: rate.retryAfterSec,
             reason: 'scanner_activity',
-            rule: scannerPathHit?.id || uaHit?.id || 'probe_window',
+            rule: scannerPathHit?.id || (sensitivePathHit ? 'sensitive_path' : null) || uaHit?.id || 'probe_window',
             severity: 'medium',
             category: 'botnet',
-            detection: `scanner:${scannerPathHit?.id || uaHit?.id || 'burst'}`,
+            detection: `scanner:${scannerPathHit?.id || (sensitivePathHit ? 'sensitive_path' : null) || uaHit?.id || 'burst'}`,
             targetLabel: composeTargetLabel(
               siteLabel,
-              `${context.method} ${context.path} · Scanner:${scannerPathHit?.id || uaHit?.id || 'burst'}`
+              `${context.method} ${context.path} · Scanner:${scannerPathHit?.id || (sensitivePathHit ? 'sensitive_path' : null) || uaHit?.id || 'burst'}`
             ),
             requestsLast1m: countRecentHits(bucketKey),
           })
@@ -948,8 +888,11 @@ export function createSecurityDetectionMiddleware(opts) {
       }
     }
 
-    const botUa = uaHit && ['curl', 'python_requests', 'go_http', 'automation'].includes(uaHit.id);
-    if (botUa && botCfg.enabled) {
+    const botSignal = Boolean(
+      botBehaviorHit || uaKind === 'bot_client' || uaKind === 'automation' || uaKind === 'crawler',
+    );
+    if (botSignal && botCfg.enabled) {
+      const botRuleId = botBehaviorHit?.id || uaHit?.id || 'behavior';
       const bucketKey = `bot:${context.ip}`;
       const rate = recordRateWindow(bucketKey, botCfg);
       if (!rate.allowed) {
@@ -958,11 +901,11 @@ export function createSecurityDetectionMiddleware(opts) {
             statusCode: 429,
             retryAfterSec: rate.retryAfterSec,
             reason: 'bot_activity',
-            rule: uaHit.id,
+            rule: botRuleId,
             severity: 'medium',
             category: 'botnet',
-            detection: `bot_activity:${uaHit.id}`,
-            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Bot:${uaHit.id}`),
+            detection: `bot_activity:${botRuleId}`,
+            targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Bot:${botRuleId}`),
             requestsLast1m: countRecentHits(bucketKey),
           })
         )
@@ -976,23 +919,29 @@ export function createSecurityDetectionMiddleware(opts) {
           reason: 'suspicious_user_agent',
           rule: uaHit.id,
           severity: 'medium',
-          category: ['scanner', 'automation'].includes(uaHit.id) ? 'botnet' : 'intrusion',
-          detection: ['scanner', 'automation'].includes(uaHit.id) ? `bot_activity:${uaHit.id}` : `bad_ua:${uaHit.id}`,
+          category: uaKind === 'scanner' || uaKind === 'automation' || uaKind === 'crawler' ? 'botnet' : 'intrusion',
+          detection:
+            uaKind === 'scanner' || uaKind === 'automation' || uaKind === 'crawler'
+              ? `bot_activity:${uaHit.id}`
+              : `bad_ua:${uaHit.id}`,
           targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · UA:${uaHit.id}`),
         })
       )
         return;
     }
 
-    if (scannerPathHit && scannerCfg.enabled) {
+    if ((scannerPathHit || sensitivePathHit) && scannerCfg.enabled) {
       if (
         handleDetection(req, res, context, scannerCfg, {
           reason: 'scanner_path_probe',
-          rule: scannerPathHit.id,
+          rule: scannerPathHit?.id || 'sensitive_path',
           severity: 'medium',
           category: 'botnet',
-          detection: `scanner:${scannerPathHit.id}`,
-          targetLabel: composeTargetLabel(siteLabel, `${context.method} ${context.path} · Scanner:${scannerPathHit.id}`),
+          detection: `scanner:${scannerPathHit?.id || 'sensitive_path'}`,
+          targetLabel: composeTargetLabel(
+            siteLabel,
+            `${context.method} ${context.path} · Scanner:${scannerPathHit?.id || 'sensitive_path'}`,
+          ),
           requestsLast1m: countRecentHits(`req:${context.ip}`),
         })
       )
