@@ -21,7 +21,7 @@ function DetailItem({ label, value, mono = false, dark = false }) {
       <p className={`text-[9px] font-semibold uppercase tracking-[0.16em] ${dark ? 'text-slate-400' : 'text-slark-muted'}`}>
         {label}
       </p>
-      <p className={`mt-1 text-[12px] ${mono ? 'font-mono' : ''} ${dark ? 'text-slate-200' : 'text-slark-text'}`}>
+      <p className={`mt-1 break-words text-[12px] ${mono ? 'break-all font-mono' : ''} ${dark ? 'text-slate-200' : 'text-slark-text'}`}>
         {value}
       </p>
     </div>
@@ -57,14 +57,18 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
 
   useEffect(() => {
     if (!attack) return undefined;
-    const prev = document.body.style.overflow;
+    const scrollRoot = document.getElementById('app-scroll-root');
+    const prevBody = document.body.style.overflow;
+    const prevRoot = scrollRoot?.style.overflow ?? '';
     document.body.style.overflow = 'hidden';
+    if (scrollRoot) scrollRoot.style.overflow = 'hidden';
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBody;
+      if (scrollRoot) scrollRoot.style.overflow = prevRoot;
       window.removeEventListener('keydown', onKey);
     };
   }, [attack, onClose]);
@@ -142,58 +146,64 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center p-3 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="incident-modal-title"
     >
       <button
         type="button"
-        className="absolute inset-0 bg-slark-dark/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-slark-dark/50 backdrop-blur-sm"
         aria-label={t('incidentModal.close')}
         onClick={onClose}
       />
       <div
-        className={`relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border shadow-slark-lg ${
+        className={`relative z-10 flex h-[92dvh] w-full min-h-0 max-w-5xl flex-col overflow-hidden rounded-t-3xl border shadow-slark-lg sm:h-auto sm:max-h-[92vh] sm:rounded-3xl ${
           dark ? 'border-slate-600/60 bg-slark-dark text-slate-200' : 'border-slark-border bg-slark-bg'
         }`}
+        style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}
       >
-        <div className={`flex items-start justify-between gap-3 border-b px-4 py-3 ${dark ? 'border-slate-600/50' : 'border-slark-border'}`}>
-          <div className="min-w-0">
-            <h2 id="incident-modal-title" className={`font-cyber text-sm font-bold tracking-wide ${dark ? 'text-slate-100' : 'text-slark-text'}`}>
-              {t('incidentModal.title')}
-            </h2>
-            <p className={`mt-1 text-[10px] ${dark ? 'text-slate-400' : 'text-slark-muted'}`}>{t('incidentModal.subtitle')}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="flex items-center gap-2 -translate-x-2 sm:-translate-x-3">
+        <div className={`shrink-0 border-b px-4 py-3 ${dark ? 'border-slate-600/50' : 'border-slark-border'}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 pr-2">
+              <h2
+                id="incident-modal-title"
+                className={`font-cyber text-xs font-bold tracking-wide sm:text-sm ${dark ? 'text-slate-100' : 'text-slark-text'}`}
+              >
+                {t('incidentModal.title')}
+              </h2>
+              <p className={`mt-1 text-[10px] leading-relaxed ${dark ? 'text-slate-400' : 'text-slark-muted'}`}>
+                {t('incidentModal.subtitle')}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
               <span className={`rounded border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${cat.badgeClass}`}>
                 {t(threatCategoryLabelKey(attack.category))}
               </span>
               <button
                 type="button"
                 onClick={handleExportPdf}
-                className="rounded-lg border border-slark-primary/30 bg-slark-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover"
+                className="min-h-9 flex-1 rounded-lg border border-slark-primary/30 bg-slark-primary px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-white hover:bg-slark-primary-hover sm:flex-none sm:py-1.5 sm:text-[11px]"
               >
                 {t('incidentModal.exportPdf')}
               </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
+                  dark
+                    ? 'border-rose-500/25 bg-rose-500/10 text-rose-300 hover:border-rose-500/40 hover:bg-rose-500/20 hover:text-rose-200'
+                    : 'border-rose-200/80 bg-rose-50 text-rose-600 hover:border-rose-300 hover:bg-rose-100'
+                }`}
+                aria-label={t('incidentModal.close')}
+              >
+                <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
-                dark
-                  ? 'border-rose-500/25 bg-rose-500/10 text-rose-300 hover:border-rose-500/40 hover:bg-rose-500/20 hover:text-rose-200'
-                  : 'border-rose-200/80 bg-rose-50 text-rose-600 hover:border-rose-300 hover:bg-rose-100'
-              }`}
-              aria-label={t('incidentModal.close')}
-            >
-              <X className="h-4 w-4" strokeWidth={2.25} aria-hidden />
-            </button>
           </div>
         </div>
 
-        <div className={`thin-scrollbar${dark ? '-dark' : ''} flex-1 overflow-y-auto px-4 py-4`}>
+        <div className={`thin-scrollbar${dark ? '-dark' : ''} min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4`}>
           <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
             <div className="space-y-4">
               <DetailSection title={t('incidentModal.overview')} dark={dark}>
@@ -240,13 +250,13 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
 
             <div className="space-y-4">
               <DetailSection title={t('feed.logTitle')} dark={dark}>
-                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[26rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[10px] leading-relaxed ${dark ? 'border-slate-600/50 bg-black/30 text-slate-200' : 'border-slark-border bg-slark-dark text-slark-bg'}`}>
+                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[12rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[10px] leading-relaxed sm:max-h-[26rem] ${dark ? 'border-slate-600/50 bg-black/30 text-slate-200' : 'border-slark-border bg-slark-dark text-slark-bg'}`}>
                   {logText}
                 </pre>
               </DetailSection>
 
               <DetailSection title={t('incidentModal.technical')} dark={dark}>
-                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[18rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[9px] leading-relaxed ${dark ? 'border-slate-600/50 bg-white/[0.04] text-slate-200' : 'border-slark-border bg-slark-card text-slark-dark'}`}>
+                <pre className={`thin-scrollbar${dark ? '-dark' : ''} max-h-[10rem] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[9px] leading-relaxed sm:max-h-[18rem] ${dark ? 'border-slate-600/50 bg-white/[0.04] text-slate-200' : 'border-slark-border bg-slark-card text-slark-dark'}`}>
                   {readout}
                 </pre>
               </DetailSection>
@@ -262,11 +272,13 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
         </div>
 
         {onSendToAI ? (
-          <div className={`flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3 ${dark ? 'border-slate-600/50 bg-[#1a2332]' : 'border-slark-border bg-slark-card'}`}>
+          <div
+            className={`flex shrink-0 flex-wrap items-center justify-stretch gap-2 border-t px-3 py-3 sm:justify-end sm:px-4 ${dark ? 'border-slate-600/50 bg-[#1a2332]' : 'border-slark-border bg-slark-card'}`}
+          >
             <button
               type="button"
               onClick={onSendToAI}
-              className="rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-slark-primary-hover"
+              className="w-full rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-slark-primary-hover sm:w-auto sm:py-2"
             >
               {t('detail.sendToAI')}
             </button>

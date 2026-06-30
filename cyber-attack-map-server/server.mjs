@@ -45,6 +45,7 @@ import {
   startPasswordChangeChallenge,
   verifyPasswordChangeCode,
 } from './auth/passwordChange.mjs';
+import { aiConfigured, runAiChat, runDailyCommentary } from './ai/deepseek.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() || '';
@@ -128,6 +129,9 @@ function healthPayload() {
     authConfigured: authConfigured(),
     mongo: {
       persistence: !mongoDisabled(),
+    },
+    ai: {
+      configured: aiConfigured(),
     },
   };
 }
@@ -657,7 +661,96 @@ const httpServer = createServer(async (req, res) => {
       configured: authConfigured(),
       google: Boolean(cfg.googleClientId && cfg.googleClientSecret),
       smtp: smtpConfigured(),
+      ai: aiConfigured(),
     });
+    return;
+  }
+
+  if (p === '/ai/status' && req.method === 'GET') {
+    sendJson(res, 200, { ok: true, configured: aiConfigured() });
+    return;
+  }
+
+  if (p === '/ai/chat' && req.method === 'POST') {
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const variant = body.variant === 'landing' ? 'landing' : 'threat';
+      if (variant !== 'landing') {
+        const session = sessionFromRequest(req);
+        if (!session?.email) {
+          sendJson(res, 401, { ok: false, error: 'not_authenticated' });
+          return;
+        }
+      }
+      const messages = Array.isArray(body.messages) ? body.messages : [];
+      const locale = typeof body.locale === 'string' ? body.locale : 'en';
+      const result = await runAiChat({ variant, messages, locale });
+      sendJson(res, 200, { ok: true, reply: result.reply });
+    } catch (e) {
+      if (e?.code === 'ai_not_configured') {
+        sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
+        return;
+      }
+      if (e?.code === 'ai_rate_limited') {
+        sendJson(res, 429, { ok: false, error: 'ai_rate_limited' });
+        return;
+      }
+      if (e?.code === 'ai_invalid_key') {
+        sendJson(res, 503, { ok: false, error: 'ai_invalid_key' });
+        return;
+      }
+      if (e?.code === 'ai_model_not_found') {
+        sendJson(res, 503, { ok: false, error: 'ai_model_not_found' });
+        return;
+      }
+      if (e?.code === 'bad_request') {
+        sendJson(res, 400, { ok: false, error: e.message });
+        return;
+      }
+      if (e?.code === 'ai_chat_failed') {
+        console.error('[ai/chat]', e?.message || e);
+        sendJson(res, 502, { ok: false, error: 'ai_chat_failed' });
+        return;
+      }
+      console.error('[ai/chat]', e?.message || e);
+      sendJson(res, 502, { ok: false, error: 'ai_chat_failed' });
+    }
+    return;
+  }
+
+  if (p === '/ai/intel/daily-commentary' && req.method === 'POST') {
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const dailyPoints = Array.isArray(body.dailyPoints) ? body.dailyPoints : [];
+      const locale = typeof body.locale === 'string' ? body.locale : 'en';
+      const result = await runDailyCommentary({ dailyPoints, locale });
+      sendJson(res, 200, { ok: true, comments: result.comments });
+    } catch (e) {
+      if (e?.code === 'ai_not_configured') {
+        sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
+        return;
+      }
+      if (e?.code === 'ai_rate_limited') {
+        sendJson(res, 429, { ok: false, error: 'ai_rate_limited' });
+        return;
+      }
+      if (e?.code === 'ai_invalid_key') {
+        sendJson(res, 503, { ok: false, error: 'ai_invalid_key' });
+        return;
+      }
+      if (e?.code === 'ai_model_not_found') {
+        sendJson(res, 503, { ok: false, error: 'ai_model_not_found' });
+        return;
+      }
+      if (e?.code === 'invalid_commentary_format') {
+        sendJson(res, 502, { ok: false, error: 'invalid_commentary_format' });
+        return;
+      }
+      console.error('[ai/intel/daily-commentary]', e?.message || e);
+      sendJson(res, 502, { ok: false, error: 'commentary_failed' });
+    }
     return;
   }
 

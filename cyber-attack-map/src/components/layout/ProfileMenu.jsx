@@ -38,9 +38,9 @@ function initialsFromUser(user) {
 }
 
 /**
- * @param {{ variant?: 'default' | 'sidebar'; navDark?: boolean }} props
+ * @param {{ variant?: 'default' | 'sidebar'; navDark?: boolean; expanded?: boolean }} props
  */
-export function ProfileMenu({ variant = 'default', navDark = false }) {
+export function ProfileMenu({ variant = 'default', navDark = false, expanded = false }) {
   const { t, locale, setLocale } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
@@ -51,9 +51,20 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(/** @type {{ email: string, name: string, picture?: string } | null} */ (null));
-  const [menuPos, setMenuPos] = useState(/** @type {{ left: number, bottom: number } | null} */ (null));
+  const [menuPos, setMenuPos] = useState(/** @type {{ left: number; bottom: number } | null} */ (null));
+  const [dropdownPos, setDropdownPos] = useState(/** @type {{ top: number; right: number } | null} */ (null));
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  );
 
   const isSidebar = variant === 'sidebar';
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -73,7 +84,36 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
   }, [refresh]);
 
   useLayoutEffect(() => {
-    if (!open || !isSidebar || !triggerRef.current) {
+    if (!open || isSidebar || !triggerRef.current || isMobile) {
+      setDropdownPos(null);
+      return undefined;
+    }
+
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const update = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      if (mq.matches) {
+        setDropdownPos({
+          top: r.bottom + 8,
+          right: Math.max(12, window.innerWidth - r.right),
+        });
+      } else {
+        setDropdownPos(null);
+      }
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, isSidebar, isMobile]);
+
+  useLayoutEffect(() => {
+    if (!open || !isSidebar || !triggerRef.current || isMobile) {
       setMenuPos(null);
       return;
     }
@@ -94,7 +134,7 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [open, isSidebar]);
+  }, [open, isSidebar, isMobile]);
 
   useEffect(() => {
     if (!open) {
@@ -131,8 +171,7 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
     setOpen(false);
     await signOut();
     setUser(null);
-    window.dispatchEvent(new Event('slark-auth-change'));
-    navigate('/signin');
+    navigate('/', { replace: true });
   };
 
   const displayName = user?.name || user?.email || t('profile.guest');
@@ -152,6 +191,14 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
     { id: 'id', label: t('profile.languageIndonesian') },
   ];
 
+  const panelClass = navDark
+    ? 'thin-scrollbar-dark max-h-[calc(100dvh-5rem)] w-[min(18.5rem,calc(100vw-1.5rem))] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-600/60 bg-slark-dark/98 text-slate-200 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.55)] backdrop-blur-md'
+    : MENU_PANEL_CLASS;
+
+  const itemClass = navDark
+    ? 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]'
+    : MENU_ITEM_CLASS;
+
   const languageSection = (
     <>
       <button
@@ -159,18 +206,18 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
         role="menuitem"
         aria-expanded={languageOpen}
         onClick={() => setLanguageOpen((v) => !v)}
-        className={`${MENU_ITEM_CLASS} ${languageOpen ? 'bg-slark-card/70 dark:bg-white/[0.05]' : ''}`}
+        className={`${itemClass} ${languageOpen ? (navDark ? 'bg-white/[0.05]' : 'bg-slark-card/70 dark:bg-white/[0.05]') : ''}`}
       >
-        <MenuRowIcon>
+        <MenuRowIcon className={navDark ? 'bg-white/[0.06] text-slate-300 ring-white/10' : ''}>
           <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
         </MenuRowIcon>
         <span className="min-w-0 flex-1 font-medium">{t('profile.changeLanguage')}</span>
         <span className="flex w-11 shrink-0 items-center justify-end gap-1.5">
           <LanguageFlag locale={locale} className="shadow-none" />
           <ChevronDown
-            className={`h-4 w-4 text-slark-muted transition-transform motion-safe:duration-200 ${
-              languageOpen ? 'rotate-180' : ''
-            }`}
+            className={`h-4 w-4 transition-transform motion-safe:duration-200 ${
+              navDark ? 'text-slate-400' : 'text-slark-muted'
+            } ${languageOpen ? 'rotate-180' : ''}`}
             strokeWidth={2}
             aria-hidden
           />
@@ -179,7 +226,11 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
 
       {languageOpen && (
         <div
-          className="mx-2 mb-1 space-y-0.5 rounded-xl bg-slark-card/60 p-1 ring-1 ring-slark-border/50 dark:bg-white/[0.04] dark:ring-white/10"
+          className={`mx-2 mb-1 space-y-0.5 rounded-xl p-1 ring-1 ${
+            navDark
+              ? 'bg-white/[0.04] ring-white/10'
+              : 'bg-slark-card/60 ring-slark-border/50 dark:bg-white/[0.04] dark:ring-white/10'
+          }`}
           role="group"
           aria-label={t('profile.changeLanguage')}
         >
@@ -192,17 +243,25 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
                 role="menuitemradio"
                 aria-checked={selected}
                 onClick={() => handleLocaleChange(option.id)}
-                className={`${MENU_ITEM_CLASS} py-2 ${
+                className={`${itemClass} py-2 ${
                   selected
-                    ? 'bg-slark-primary/12 font-semibold text-slark-primary shadow-sm dark:bg-slark-primary/20 dark:text-white'
-                    : 'text-slark-text hover:bg-slark-bg/80 dark:text-white/90 dark:hover:bg-white/[0.05]'
+                    ? navDark
+                      ? 'bg-slark-primary/20 font-semibold text-white'
+                      : 'bg-slark-primary/12 font-semibold text-slark-primary shadow-sm dark:bg-slark-primary/20 dark:text-white'
+                    : navDark
+                      ? 'text-slate-200 hover:bg-white/[0.05]'
+                      : 'text-slark-text hover:bg-slark-bg/80 dark:text-white/90 dark:hover:bg-white/[0.05]'
                 }`}
               >
                 <LanguageFlagSlot locale={option.id} />
                 <span className="min-w-0 flex-1">{option.label}</span>
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                   {selected ? (
-                    <Check className="h-4 w-4 text-slark-primary dark:text-white" strokeWidth={2.5} aria-hidden />
+                    <Check
+                      className={`h-4 w-4 ${navDark ? 'text-white' : 'text-slark-primary dark:text-white'}`}
+                      strokeWidth={2.5}
+                      aria-hidden
+                    />
                   ) : null}
                 </span>
               </button>
@@ -213,30 +272,52 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
     </>
   );
 
+  const menuPanelStyle =
+    isMobile
+      ? undefined
+      : isSidebar && menuPos
+        ? { position: 'fixed', left: menuPos.left, bottom: menuPos.bottom, zIndex: 80 }
+        : dropdownPos
+          ? { position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, zIndex: 80 }
+          : undefined;
+
+  const menuPanelClassName = isMobile
+    ? panelClass
+    : isSidebar
+      ? panelClass
+      : dropdownPos
+        ? panelClass
+        : `absolute right-0 top-[calc(100%+0.625rem)] z-[70] ${panelClass}`;
+
   const menuPanel = (
-    <div
-      ref={menuRef}
-      role="menu"
-      className={isSidebar ? MENU_PANEL_CLASS : `absolute right-0 top-[calc(100%+0.625rem)] z-[70] ${MENU_PANEL_CLASS}`}
-      style={
-        isSidebar && menuPos
-          ? { position: 'fixed', left: menuPos.left, bottom: menuPos.bottom, zIndex: 70 }
-          : undefined
-      }
-    >
-      <div className="relative overflow-hidden border-b border-slark-border/70 px-4 py-4 dark:border-white/10">
+    <div ref={menuRef} role="menu" className={menuPanelClassName} style={menuPanelStyle}>
+      <div
+        className={`relative overflow-hidden border-b px-4 py-4 ${
+          navDark ? 'border-slate-600/50' : 'border-slark-border/70 dark:border-white/10'
+        }`}
+      >
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slark-primary/[0.08] via-transparent to-transparent"
           aria-hidden
         />
         <div className="relative flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 bg-slark-card text-xs font-bold text-slark-text shadow-md ring-2 ring-slark-primary/15 dark:border-slark-dark dark:bg-slate-700 dark:text-white">
+          <span
+            className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-xs font-bold shadow-md ring-2 ${
+              navDark
+                ? 'border-slate-500/50 bg-white/[0.06] text-slate-100 ring-slark-primary/20'
+                : 'border-white/80 bg-slark-card text-slark-text ring-slark-primary/15 dark:border-slark-dark dark:bg-slate-700 dark:text-white'
+            }`}
+          >
             {avatarEl}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-snug text-slark-text dark:text-white">{displayName}</p>
+            <p className={`truncate text-sm font-semibold leading-snug ${navDark ? 'text-slate-100' : 'text-slark-text dark:text-white'}`}>
+              {displayName}
+            </p>
             {user?.email && (
-              <p className="mt-0.5 truncate text-xs text-slark-muted dark:text-white/55">{user.email}</p>
+              <p className={`mt-0.5 truncate text-xs ${navDark ? 'text-slate-400' : 'text-slark-muted dark:text-white/55'}`}>
+                {user.email}
+              </p>
             )}
             {user && (
               <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:border-emerald-500/35 dark:bg-emerald-950/50 dark:text-emerald-300">
@@ -251,8 +332,8 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
       <div className="space-y-0.5 p-2">
         {user ? (
           <>
-            <Link to="/settings" role="menuitem" className={MENU_ITEM_CLASS} onClick={() => setOpen(false)}>
-              <MenuRowIcon>
+            <Link to="/settings" role="menuitem" className={itemClass} onClick={() => setOpen(false)}>
+              <MenuRowIcon className={navDark ? 'bg-white/[0.06] text-slate-300 ring-white/10' : ''}>
                 <Settings className="h-4 w-4" strokeWidth={2} aria-hidden />
               </MenuRowIcon>
               <span className="min-w-0 flex-1 font-medium">{t('settings.title')}</span>
@@ -262,9 +343,9 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
         ) : (
           <>
             <Link
-              to="/signin"
+              to={`/?getstarted=1&return=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
               role="menuitem"
-              className={`${MENU_ITEM_CLASS} font-semibold text-slark-primary dark:text-white`}
+              className={`${itemClass} font-semibold ${navDark ? 'text-slark-primary' : 'text-slark-primary dark:text-white'}`}
               onClick={() => setOpen(false)}
             >
               <MenuRowIcon className="bg-slark-primary/10 text-slark-primary ring-slark-primary/20 dark:bg-slark-primary/20 dark:text-white dark:ring-slark-primary/30">
@@ -278,14 +359,20 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
       </div>
 
       {user && (
-        <div className="border-t border-slark-border/70 p-2 dark:border-white/10">
+        <div className={`border-t p-2 ${navDark ? 'border-slate-600/50' : 'border-slark-border/70 dark:border-white/10'}`}>
           <button
             type="button"
             role="menuitem"
             onClick={handleSignOut}
-            className={`${MENU_ITEM_CLASS} text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/25`}
+            className={`${itemClass} ${navDark ? 'text-red-300 hover:bg-red-950/25' : 'text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/25'}`}
           >
-            <MenuRowIcon className="bg-red-50 text-red-600 ring-red-200/80 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-500/25">
+            <MenuRowIcon
+              className={
+                navDark
+                  ? 'bg-red-950/30 text-red-300 ring-red-500/25'
+                  : 'bg-red-50 text-red-600 ring-red-200/80 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-500/25'
+              }
+            >
               <LogOut className="h-4 w-4" strokeWidth={2} aria-hidden />
             </MenuRowIcon>
             <span className="min-w-0 flex-1 font-medium">{t('profile.signOut')}</span>
@@ -295,11 +382,49 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
     </div>
   );
 
+  const renderMenuPortal = () => {
+    if (!open) return null;
+
+    if (isMobile) {
+      return createPortal(
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[90] bg-black/50"
+            aria-label={t('profile.menuLabel')}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="pointer-events-none fixed inset-0 z-[91] flex items-center justify-center p-4"
+            role="presentation"
+          >
+            <div className="pointer-events-auto w-full max-w-[18.5rem]">{menuPanel}</div>
+          </div>
+        </>,
+        document.body,
+      );
+    }
+
+    if (isSidebar && menuPos) {
+      return createPortal(menuPanel, document.body);
+    }
+
+    if (!isSidebar && dropdownPos) {
+      return createPortal(menuPanel, document.body);
+    }
+
+    if (!isSidebar) {
+      return menuPanel;
+    }
+
+    return null;
+  };
+
   if (isSidebar) {
     return (
       <div
         ref={rootRef}
-        className={`mt-auto w-full shrink-0 border-t pt-2 ${navDark ? 'border-slate-600/50' : 'border-slark-border'}`}
+        className={`mt-auto w-full shrink-0 ${expanded ? 'pt-1' : `border-t pt-2 ${navDark ? 'border-slate-600/50' : 'border-slark-border'}`}`}
       >
         <button
           ref={triggerRef}
@@ -308,9 +433,9 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
             setOpen((v) => !v);
             e.currentTarget.blur();
           }}
-          className={`flex w-full items-center justify-center gap-2 rounded-lg px-2 py-2 outline-none transition focus-visible:ring-2 focus-visible:ring-slark-primary/40 ${
-            navDark ? 'hover:bg-white/[0.06]' : 'hover:bg-slark-card'
-          }`}
+          className={`flex w-full items-center gap-3 outline-none transition focus-visible:ring-2 focus-visible:ring-slark-primary/40 ${
+            expanded ? 'px-4 py-3 hover:bg-white/[0.04]' : 'justify-center gap-2 rounded-lg px-2 py-2'
+          } ${!expanded && (navDark ? 'hover:bg-white/[0.06]' : 'hover:bg-slark-card')}`}
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label={t('profile.menuLabel')}
@@ -326,32 +451,40 @@ export function ProfileMenu({ variant = 'default', navDark = false }) {
             {avatarEl}
           </span>
           <span
-            className={`min-w-0 max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] opacity-0 transition-all duration-300 ease-out group-hover/nav:max-w-[15rem] group-hover/nav:opacity-100 ${
-              navDark ? 'text-slate-200' : 'text-slark-text'
-            }`}
+            className={
+              expanded
+                ? `min-w-0 flex-1 truncate text-left text-[13px] font-semibold ${navDark ? 'text-slate-200' : 'text-slark-text'}`
+                : `min-w-0 max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] opacity-0 transition-all duration-300 ease-out group-hover/nav:max-w-[15rem] group-hover/nav:opacity-100 ${
+                    navDark ? 'text-slate-200' : 'text-slark-text'
+                  }`
+            }
           >
             {displayName}
           </span>
         </button>
-        {open && menuPos && createPortal(menuPanel, document.body)}
+        {renderMenuPortal()}
       </div>
     );
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slark-border bg-slark-card text-[11px] font-bold text-slark-text shadow-sm transition hover:scale-105 active:scale-95 dark:border-slark-border/60 dark:bg-slate-700 dark:text-white sm:h-10 sm:w-10"
+        className={
+          navDark
+            ? 'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-600/50 bg-white/[0.06] text-[11px] font-bold text-slate-100 shadow-sm transition hover:bg-white/[0.1] active:scale-95 sm:h-10 sm:w-10'
+            : 'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slark-border bg-slark-card text-[11px] font-bold text-slark-text shadow-sm transition hover:scale-105 active:scale-95 dark:border-slark-border/60 dark:bg-slate-700 dark:text-white sm:h-10 sm:w-10'
+        }
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={t('profile.menuLabel')}
       >
         {avatarEl}
       </button>
-      {open && menuPanel}
+      {renderMenuPortal()}
     </div>
   );
 }

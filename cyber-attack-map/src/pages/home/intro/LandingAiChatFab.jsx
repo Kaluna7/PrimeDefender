@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { Headphones, X } from 'lucide-react';
 import { ThreatAIChatPanel } from '../../../components/monitoring/ThreatAIChatPanel.jsx';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
 import { SLARK as C } from '../../../theme/slarkColors.js';
@@ -49,7 +49,11 @@ export function LandingAiChatFab() {
               <X className="h-4 w-4" strokeWidth={2} aria-hidden />
             </button>
           </div>
-          <ThreatAIChatPanel variant="landing" className="rounded-none border-0 shadow-none" />
+          <ThreatAIChatPanel
+            variant="landing"
+            className="rounded-none border-0 shadow-none"
+            onIntegrationGuideClick={() => setOpen(false)}
+          />
         </div>
       ) : (
         <button
@@ -66,7 +70,7 @@ export function LandingAiChatFab() {
           aria-controls="landing-ai-chat-panel"
           aria-label={t('home.landingAiChat.fab')}
         >
-          <MessageCircle className="h-6 w-6" strokeWidth={2} aria-hidden />
+          <Headphones className="h-6 w-6" strokeWidth={2} aria-hidden />
         </button>
       )}
     </div>

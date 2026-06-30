@@ -216,7 +216,7 @@ export function SettingsPage() {
   const handleSignOut = async () => {
     await signOut();
     setUser(null);
-    navigate('/signin');
+    navigate('/', { replace: true });
   };
 
   const openPasswordModal = () => {

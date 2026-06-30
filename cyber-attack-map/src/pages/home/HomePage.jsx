@@ -20,6 +20,22 @@ export function HomePage() {
   const [phase, setPhase] = useState(/** @type {HomePhase} */ ('loading'));
   const [getStartedOpen, setGetStartedOpen] = useState(false);
 
+  const authChallenge = searchParams.get('challenge') || '';
+  const authEmail = searchParams.get('email') || '';
+  const authError = searchParams.get('error') || '';
+  const authReturn = searchParams.get('return') || '';
+
+  const clearAuthSearchParams = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('getstarted');
+    next.delete('challenge');
+    next.delete('email');
+    next.delete('error');
+    next.delete('return');
+    const q = next.toString();
+    navigate({ pathname: '/', search: q ? `?${q}` : '' }, { replace: true });
+  };
+
   useEffect(() => {
     document.title = `${t('brand.name')} – Home`;
   }, [t, locale]);
@@ -87,12 +103,46 @@ export function HomePage() {
     };
   }, [searchParams, navigate]);
 
+  useEffect(() => {
+    const onAuthChange = async () => {
+      const status = await fetchAuthStatus();
+      setPhase(status.ok && status.user ? 'hub' : 'intro');
+    };
+    window.addEventListener('slark-auth-change', onAuthChange);
+    return () => window.removeEventListener('slark-auth-change', onAuthChange);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'intro') return;
+    const shouldOpen =
+      searchParams.get('getstarted') === '1' || Boolean(authChallenge) || Boolean(authError);
+    if (shouldOpen) setGetStartedOpen(true);
+  }, [phase, searchParams, authChallenge, authError]);
+
   const handleGetStarted = () => {
     setGetStartedOpen(true);
   };
 
+  const handleCloseGetStarted = () => {
+    setGetStartedOpen(false);
+    if (
+      searchParams.get('getstarted') === '1' ||
+      authChallenge ||
+      authError ||
+      authReturn
+    ) {
+      clearAuthSearchParams();
+    }
+  };
+
   const handleSignInSuccess = () => {
     setGetStartedOpen(false);
+    if (authReturn.startsWith('/') && !authReturn.startsWith('//')) {
+      clearAuthSearchParams();
+      navigate(authReturn, { replace: true });
+      return;
+    }
+    clearAuthSearchParams();
     setPhase('hub');
   };
 
@@ -110,8 +160,12 @@ export function HomePage() {
         <LandingPage onGetStarted={handleGetStarted} />
         <GetStartedModal
           open={getStartedOpen}
-          onClose={() => setGetStartedOpen(false)}
+          onClose={handleCloseGetStarted}
           onSuccess={handleSignInSuccess}
+          defaultMode={authChallenge || authError ? 'login' : 'signup'}
+          initialChallengeId={authChallenge}
+          initialEmail={authEmail}
+          initialError={authError}
         />
       </div>
     );

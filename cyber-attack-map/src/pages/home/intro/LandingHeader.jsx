@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Check, ChevronDown } from 'lucide-react';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
+import { LanguageFlag } from '../../../components/layout/LanguageFlag.jsx';
 import siteIcon from '../../../assets/images/icon.webp';
+
+const LANGUAGE_OPTIONS = [
+  { id: 'en', labelKey: 'profile.languageEnglish' },
+  { id: 'id', labelKey: 'profile.languageIndonesian' },
+];
 
 const NAV = [
   { href: '#features', labelKey: 'home.sectionFeatures' },
@@ -14,10 +21,12 @@ const SCROLL_DELTA = 8;
 const TOP_REVEAL = 32;
 
 export function LandingHeader({ onGetStarted }) {
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const [hidden, setHidden] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
   const lastYRef = useRef(0);
   const tickingRef = useRef(false);
+  const langRef = useRef(null);
 
   useEffect(() => {
     const scroller = document.getElementById('app-scroll-root');
@@ -50,6 +59,22 @@ export function LandingHeader({ onGetStarted }) {
     return () => scroller.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!langOpen) return undefined;
+    const onPointer = (e) => {
+      if (langRef.current && !langRef.current.contains(e.target)) setLangOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setLangOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [langOpen]);
+
   return (
     <header
       className={`fixed left-0 right-0 top-0 z-40 border-b border-[#E2E8F0] bg-[#FFFFFF]/95 backdrop-blur-md transition-transform duration-300 ease-out will-change-transform ${
@@ -57,8 +82,8 @@ export function LandingHeader({ onGetStarted }) {
       }`}
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 pr-16 sm:px-6 sm:pr-24">
-        <Link to="/" className="group flex shrink-0 items-center gap-2.5">
+      <div className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 py-3.5 pl-4 pr-3 sm:gap-4 sm:pl-6 sm:pr-5 lg:pl-8 lg:pr-8 xl:pl-10 xl:pr-10">
+        <Link to="/" className="group flex shrink-0 items-center gap-2.5 justify-self-start">
           <img
             src={siteIcon}
             alt=""
@@ -67,34 +92,95 @@ export function LandingHeader({ onGetStarted }) {
             className="h-9 w-9 rounded-lg object-cover"
             aria-hidden
           />
-          <span className="font-cyber text-sm font-bold uppercase tracking-[0.12em] text-[#C62828] sm:text-base">
+          <span className="hidden font-cyber text-sm font-bold uppercase tracking-[0.12em] text-[#C62828] sm:inline sm:text-base">
             {t('brand.name')}
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Landing">
+        <nav
+          className="hidden min-w-0 items-center justify-center gap-0.5 justify-self-center lg:flex xl:gap-1"
+          aria-label="Landing"
+        >
           {NAV.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#C62828]"
+              className="whitespace-nowrap rounded-lg px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#C62828] xl:px-3 xl:text-xs xl:tracking-[0.14em]"
             >
               {t(item.labelKey)}
             </a>
           ))}
           <Link
             to="/about"
-            className="rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#C62828]"
+            className="whitespace-nowrap rounded-lg px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#C62828] xl:px-3 xl:text-xs xl:tracking-[0.14em]"
           >
             {t('nav.about')}
           </Link>
         </nav>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2 justify-self-end sm:gap-2.5">
+          <div className="relative" ref={langRef}>
+            <button
+              type="button"
+              onClick={() => setLangOpen((v) => !v)}
+              aria-expanded={langOpen}
+              aria-haspopup="listbox"
+              aria-label={t('profile.changeLanguage')}
+              className="flex items-center gap-1 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-2 py-1.5 text-[#6B7280] transition hover:border-[#C62828]/30 hover:bg-[#F8FAFC] sm:gap-1.5 sm:px-2.5 sm:py-2"
+            >
+              <LanguageFlag locale={locale} className="border-[#E2E8F0]/80 shadow-none" />
+              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.12em] sm:inline">
+                {locale === 'id' ? 'ID' : 'EN'}
+              </span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 transition-transform motion-safe:duration-200 ${langOpen ? 'rotate-180' : ''}`}
+                strokeWidth={2}
+                aria-hidden
+              />
+            </button>
+
+            {langOpen ? (
+              <div
+                role="listbox"
+                aria-label={t('profile.changeLanguage')}
+                className="absolute right-0 top-full z-50 mt-1.5 min-w-[11rem] overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] py-1 shadow-lg"
+              >
+                {LANGUAGE_OPTIONS.map(({ id, labelKey }) => {
+                  const selected = locale === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setLocale(id);
+                        setLangOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition ${
+                        selected
+                          ? 'bg-[#FEF2F2] font-semibold text-[#C62828]'
+                          : 'text-[#374151] hover:bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <LanguageFlag locale={id} className="border-[#E2E8F0]/80 shadow-none" />
+                      <span className="min-w-0 flex-1">{t(labelKey)}</span>
+                      {selected ? (
+                        <Check className="h-4 w-4 shrink-0 text-[#C62828]" strokeWidth={2.5} aria-hidden />
+                      ) : (
+                        <span className="h-4 w-4 shrink-0" aria-hidden />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
           <button
             type="button"
             onClick={onGetStarted}
-            className="font-cyber rounded-lg border border-[#C62828] bg-[#C62828] px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white transition hover:border-[#B71C1C] hover:bg-[#B71C1C] sm:px-4 sm:text-xs"
+            className="font-cyber rounded-lg border border-[#C62828] bg-[#C62828] px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white transition hover:border-[#B71C1C] hover:bg-[#B71C1C] sm:px-4 sm:py-2 sm:text-xs sm:tracking-[0.18em]"
           >
             {t('home.introCtaPrimary')}
           </button>

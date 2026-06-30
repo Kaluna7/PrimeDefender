@@ -18,12 +18,12 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
 
   return (
     <aside
-      className={`flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t ${
+      className={`flex w-full flex-col border-t lg:min-h-0 lg:flex-1 lg:overflow-hidden ${
         dark ? 'gap-2 border-slate-600/50 bg-transparent px-3 py-3' : 'gap-1 border-slark-border bg-slark-card px-2 py-3'
       }`}
       aria-label={t('protect.title')}
     >
-      <div className={dark ? 'shrink-0 space-y-1' : undefined}>
+      <div className={`shrink-0 ${dark ? 'space-y-1' : ''}`}>
         <h2
           className={`font-cyber px-1 text-[10px] font-bold uppercase tracking-[0.28em] ${
             dark ? 'text-slate-100' : 'text-slark-dark'
@@ -36,8 +36,8 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
         </p>
       </div>
       <ul
-        className={`flex min-h-0 flex-1 flex-col ${
-          dark ? 'justify-between gap-1' : 'mt-1 gap-1'
+        className={`flex flex-col gap-1 lg:thin-scrollbar-dark lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain ${
+          dark ? 'pr-0.5' : 'mt-1'
         }`}
       >
         {PROTECTION_ORDER.map((key) => {
@@ -76,7 +76,7 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
               </span>
               <span
                 className={`shrink-0 tabular-nums ${
-                  hot ? 'font-cyber text-base' : dark ? 'text-slate-400' : 'text-slark-muted'
+                  hot ? 'font-cyber text-sm sm:text-base' : dark ? 'text-slate-400' : 'text-slark-muted'
                 }`}
                 style={typeStyles.count}
               >

@@ -48,11 +48,11 @@ export function IntegrationGuideSections({
   return (
     <div className={className}>
       {!hideStackPicker ? (
-      <div className={isModal ? 'mb-4 sm:mb-5' : 'mb-8'}>
+      <div className={isModal ? 'mb-3 sm:mb-5' : 'mb-8'}>
         <p
           className={
             isModal
-              ? `text-xs font-semibold uppercase tracking-wider sm:text-xs ${
+              ? `text-[10px] font-semibold uppercase tracking-wider sm:text-xs ${
                   theme ? 'text-[var(--hero-muted)]' : 'text-slark-muted'
                 }`
               : 'text-xs font-semibold uppercase tracking-wider text-slark-muted'
@@ -78,7 +78,7 @@ export function IntegrationGuideSections({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setStack(key)}
-                className={`flex-1 rounded-lg px-3 py-2.5 text-[15px] font-semibold transition sm:min-w-[7.5rem] sm:px-4 sm:py-2 sm:text-sm ${
+                className={`flex-1 rounded-lg px-2.5 py-2 text-xs font-semibold transition sm:min-w-[7.5rem] sm:px-4 sm:py-2 sm:text-sm ${
                   active
                     ? theme
                       ? 'bg-[var(--hero-primary)] text-white shadow-sm'
@@ -101,19 +101,19 @@ export function IntegrationGuideSections({
         <section
           key={`${stack}-${section.id}`}
           id={section.id}
-          className={`scroll-mt-24 ${isModal ? 'mb-6 last:mb-0 sm:mb-7' : undefined}`}
+          className={`scroll-mt-24 ${isModal ? 'mb-5 last:mb-0 sm:mb-7' : undefined}`}
         >
           {isModal ? (
             <>
               <h3
-                className={`text-[17px] font-bold leading-snug sm:text-base ${
+                className={`text-sm font-bold leading-snug sm:text-base ${
                   theme ? 'text-[var(--hero-text)]' : 'text-slark-text dark:text-white'
                 }`}
               >
                 {section.h}
               </h3>
               <ul
-                className={`mt-2 space-y-2 text-[15px] leading-[1.65] sm:space-y-1.5 sm:text-sm sm:leading-relaxed ${
+                className={`mt-1.5 space-y-1.5 text-xs leading-relaxed sm:mt-2 sm:space-y-1.5 sm:text-sm sm:leading-relaxed ${
                   theme ? 'text-[var(--hero-muted)]' : 'text-slark-muted'
                 }`}
               >
@@ -153,7 +153,7 @@ export function IntegrationGuideSections({
                       code={CODE_SAMPLES[block.codeKey]}
                       className={
                         isModal
-                          ? '[&_pre]:max-h-[min(34vh,13rem)] [&_pre]:px-3 [&_pre]:pb-3 [&_pre]:pt-9 [&_pre]:text-[13px] [&_pre]:leading-[1.55] sm:[&_pre]:max-h-[min(40vh,16rem)] sm:[&_pre]:text-[11px] [&>div:first-child]:text-xs [&>div:first-child]:py-2.5 [&_button]:text-[11px] sm:[&_button]:text-[10px]'
+                          ? '[&_pre]:max-h-[min(30vh,11rem)] [&_pre]:px-2.5 [&_pre]:pb-2.5 [&_pre]:pt-8 [&_pre]:text-[11px] [&_pre]:leading-[1.5] sm:[&_pre]:max-h-[min(40vh,16rem)] sm:[&_pre]:px-3 sm:[&_pre]:pb-3 sm:[&_pre]:pt-9 sm:[&_pre]:text-[11px] [&>div:first-child]:px-2.5 [&>div:first-child]:text-[10px] [&>div:first-child]:py-2 [&_button]:text-[10px] sm:[&>div:first-child]:text-xs sm:[&>div:first-child]:py-2.5 sm:[&_button]:text-[10px]'
                           : '[&_pre]:text-[13px] [&_pre]:leading-[1.55] sm:[&_pre]:text-[11px] [&>div:first-child]:text-xs [&_button]:text-[11px] sm:[&_button]:text-[10px]'
                       }
                     />
@@ -178,8 +178,8 @@ export function IntegrationGuideSections({
 function GuideListItem({ line, theme, isModal = false }) {
   const segments = formatGuideLine(line);
   const codeClass = theme
-    ? `rounded px-1 py-0.5 font-mono text-[var(--hero-primary)] bg-[color-mix(in_srgb,var(--hero-card)_80%,transparent)] ${isModal ? 'text-[13px] sm:text-xs' : 'text-xs'}`
-    : `rounded px-1 py-0.5 font-mono text-slark-primary bg-slark-card/80 ${isModal ? 'text-[13px] sm:text-xs' : 'text-xs'}`;
+    ? `rounded px-1 py-0.5 font-mono text-[var(--hero-primary)] bg-[color-mix(in_srgb,var(--hero-card)_80%,transparent)] ${isModal ? 'text-[11px] sm:text-xs' : 'text-xs'}`
+    : `rounded px-1 py-0.5 font-mono text-slark-primary bg-slark-card/80 ${isModal ? 'text-[11px] sm:text-xs' : 'text-xs'}`;
 
   return (
     <li className="list-none">

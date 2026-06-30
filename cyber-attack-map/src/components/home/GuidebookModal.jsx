@@ -145,17 +145,17 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
               <BookCanvas bookPresentationOpen={bookPresentationOpen} />
             </div>
           ) : null}
-          <div className="flex flex-1 flex-col justify-center px-4 py-3.5 sm:py-5 sm:pr-6">
+          <div className="flex flex-1 flex-col justify-center px-4 py-3 sm:py-5 sm:pr-6">
             <h2
               id="guidebook-title"
-              className={`font-cyber text-xl font-bold leading-tight tracking-tight sm:text-xl ${
+              className={`font-cyber text-lg font-bold leading-tight tracking-tight sm:text-xl ${
                 theme ? 'text-[var(--hero-text)]' : 'text-slark-text dark:text-white'
               }`}
             >
               {guide.title}
             </h2>
             <p
-              className={`mt-1.5 text-[15px] leading-relaxed sm:text-sm ${
+              className={`mt-1.5 text-xs leading-relaxed sm:text-sm ${
                 theme ? 'text-[var(--hero-muted)] opacity-95' : 'text-slark-muted'
               }`}
             >
@@ -163,7 +163,7 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
             </p>
             <Link
               to="/docs"
-              className={`mt-3 inline-flex font-cyber text-sm font-semibold uppercase tracking-wide underline-offset-4 hover:underline sm:text-xs sm:tracking-wider ${
+              className={`mt-2.5 inline-flex font-cyber text-[11px] font-semibold uppercase tracking-wide underline-offset-4 hover:underline sm:mt-3 sm:text-xs sm:tracking-wider ${
                 theme ? 'text-[var(--hero-primary)] hover:text-[var(--hero-primary)]' : 'text-slark-primary hover:text-slark-primary-hover'
               }`}
               onClick={onClose}
@@ -173,7 +173,7 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
           </div>
         </div>
 
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-5">
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-2.5 sm:px-6 sm:py-5">
           <IntegrationGuideSections variant="modal" locale={locale} theme={Boolean(theme)} />
         </div>
 
@@ -185,7 +185,7 @@ export function GuidebookModal({ open, onClose, bookPresentationOpen = false, lo
           <button
             type="button"
             onClick={onClose}
-            className={`font-cyber w-full rounded-xl border px-5 py-3 text-sm font-bold uppercase tracking-[0.15em] transition sm:w-auto sm:py-2.5 sm:text-xs sm:tracking-[0.2em] ${
+            className={`font-cyber w-full rounded-xl border px-5 py-2.5 text-xs font-bold uppercase tracking-[0.14em] transition sm:w-auto sm:py-2.5 sm:text-xs sm:tracking-[0.2em] ${
               theme
                 ? 'border-[var(--hero-border)] bg-[var(--hero-bg)] text-[var(--hero-text)] hover:border-[var(--hero-primary)] hover:bg-[var(--hero-card)]'
                 : 'border-slark-border bg-slark-bg text-slark-text hover:border-slark-primary hover:bg-slark-card'

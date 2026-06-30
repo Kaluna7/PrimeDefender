@@ -38,10 +38,23 @@ export function buildThreatReadoutText(attack, labels = {}) {
 }
 
 /**
+ * Friendly one-line message shown in the chat bubble when sending from History/Attacker.
+ * @param {Record<string, unknown>} attack
+ * @param {(key: string, vars?: Record<string, string>) => string} t
+ */
+export function buildThreatAiUserMessage(attack, t) {
+  const category = String(attack.category || attack.detection || 'security incident').trim();
+  const source = String(attack.sourceLabel || attack.attackerIp || 'unknown source').trim();
+  const target = String(attack.targetLabel || 'protected asset').trim();
+  return t('aiChat.incidentExplainRequest', { category, source, target });
+}
+
+/**
  * Full prompt block for the model: readout + structured subset (no secrets beyond ingest).
  * @param {Record<string, unknown>} attack normalized attack
+ * @param {string} [locale]
  */
-export function buildThreatAiPrompt(attack) {
+export function buildThreatAiPrompt(attack, locale = 'en') {
   const readout = buildThreatReadoutText(attack, {
     inetScope: 'Scope:Global',
     protectedSite: 'protected asset',
@@ -65,9 +78,25 @@ export function buildThreatAiPrompt(attack) {
     createdAt: attack.createdAt,
   };
 
+  const intro =
+    locale === 'id'
+      ? [
+          'Operator mengirim insiden ini dari dashboard Slark (History atau Attacker).',
+          'Jelaskan dengan nada ramah dan menenangkan untuk anggota tim SOC.',
+          'Bahasa balasan: Bahasa Indonesia.',
+          'Cakupan: apa yang terjadi; implikasi posture keamanan/sistem; intent atau teknik (cantumkan ketidakpastian); langkah pemeriksaan dan mitigasi.',
+          'Pakai paragraf pendek atau bullet. Jangan mengarang IP, payload, atau nama tool.',
+        ]
+      : [
+          'An operator sent this incident from the Slark monitoring dashboard (History or Attacker view).',
+          'Explain in a friendly, reassuring tone suitable for a SOC team member.',
+          'Reply language: English.',
+          'Cover: what happened; system/security posture; likely intent or technique (note uncertainty); concrete next checks and mitigations.',
+          'Use short paragraphs or bullet points. Do not invent IPs, payloads, or tool names.',
+        ];
+
   return [
-    'Explain this security incident for a SOC analyst.',
-    'Infer likely tools/techniques only when supported by fields (e.g. sqli in detection → SQL injection tooling such as sqlmap is a plausible recon/exploit path; state uncertainty when data is missing).',
+    ...intro,
     '',
     '--- Network-style readout (iwconfig-like) ---',
     readout,

@@ -2,13 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { fetchLandDotDataset } from '../../utils/landDotNoise.js';
 import { LAND_DOT_COUNT, MAP_BASE } from '../../config/cyberMapConfig.js';
-import { useI18n } from '../../i18n/I18nContext.jsx';
 import { buildCyberMapOption, pickDisplayAttacks } from '../../utils/cyberMapChart.js';
 
 export { pickDisplayAttacks };
 
 export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
-  const { t } = useI18n();
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
   const selectIdRef = useRef(onSelectAttackId);
@@ -18,13 +16,6 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
 
   const displayAttacks = useMemo(() => pickDisplayAttacks(attacks), [attacks]);
   displayAttacksRef.current = displayAttacks;
-
-  const mapHint =
-    attacks.length > 0
-      ? selectedAttackId
-        ? t('monitoring.mapHintHighlight', { n: displayAttacks.length })
-        : t('monitoring.mapHintAll', { n: displayAttacks.length })
-      : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +72,7 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
       buildCyberMapOption(landDots, displayAttacks, { selectedAttackId, variant: 'monitoring' }),
       { notMerge: true, lazyUpdate: true },
     );
+    chart.resize();
   }, [landDots, displayAttacks, selectedAttackId]);
 
   return (
@@ -102,11 +94,6 @@ export function AttackMap({ attacks, selectedAttackId, onSelectAttackId }) {
         }}
       />
       <div ref={chartRef} className="absolute inset-0 z-[1] h-full w-full" aria-label="Cyber threat map" />
-      {mapHint ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 right-2 z-20 rounded-lg border border-slark-border bg-slark-bg/95 px-2 py-1.5 text-[10px] leading-snug text-slark-muted shadow-sm">
-          {mapHint}
-        </p>
-      ) : null}
     </div>
   );
 }

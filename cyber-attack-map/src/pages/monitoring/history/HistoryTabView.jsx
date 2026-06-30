@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { CountryFlag } from '../../../components/ui/CountryFlag.jsx';
 import { GoogleMapsLink } from '../../../components/ui/GoogleMapsLink.jsx';
@@ -236,21 +236,34 @@ function HistoryAttackCard({ attack, index, selected, onPreview, t, locale }) {
   );
 }
 
-function HistorySidebar({ attacks, profileAttack, selectedId, onSelectAttack, onViewDetails, t, locale }) {
+function HistorySidebar({
+  attacks,
+  profileAttack,
+  selectedId,
+  onSelectAttack,
+  onViewDetails,
+  profileSectionRef,
+  t,
+  locale,
+}) {
   const ip = profileAttack?.attackerIp?.trim() || null;
   const window = attackerWindow(attacks, ip);
   const topTypes = topAttackTypesForIp(attacks, ip);
   const recent = recentAttackRows(attacks);
 
   return (
-    <aside className="flex h-full min-h-0 w-full shrink-0 flex-col gap-3 overflow-hidden lg:max-w-sm lg:self-stretch">
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark">
+    <aside className="flex w-full shrink-0 flex-col gap-3 lg:h-full lg:min-h-0 lg:max-w-sm lg:self-stretch lg:overflow-hidden">
+      <section
+        ref={profileSectionRef}
+        id="history-attacker-profile"
+        className="flex scroll-mt-20 flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark lg:min-h-0 lg:flex-1 lg:scroll-mt-0"
+      >
         <div className="shrink-0 border-b border-slate-600/45 px-3 py-2.5">
           <h3 className="font-cyber text-[10px] font-bold uppercase tracking-[0.2em] text-slate-100">
             {t('history.attackerProfile')}
           </h3>
         </div>
-        <div className="thin-scrollbar-dark min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+        <div className="thin-scrollbar-dark px-3 py-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           {!profileAttack ? (
             <p className="py-6 text-center text-[10px] leading-relaxed text-slate-500">
               {t('history.profileEmpty')}
@@ -328,13 +341,13 @@ function HistorySidebar({ attacks, profileAttack, selectedId, onSelectAttack, on
         </div>
       </section>
 
-      <section className="flex max-h-[min(11.5rem,26vh)] min-h-[6.5rem] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark">
+      <section className="flex min-h-[6.5rem] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark lg:max-h-[min(11.5rem,26vh)]">
         <div className="shrink-0 border-b border-slate-600/45 px-3 py-2">
           <h3 className="font-cyber text-[9px] font-bold uppercase tracking-[0.2em] text-slate-100">
             {t('history.recentAttacks')}
           </h3>
         </div>
-        <ul className="thin-scrollbar-dark min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-1">
+        <ul className="thin-scrollbar-dark px-1.5 py-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           {recent.length === 0 ? (
             <li className="py-3 text-center text-[9px] text-slate-500">{t('monitoring.historyEmpty')}</li>
           ) : (
@@ -391,6 +404,7 @@ function HistorySidebar({ attacks, profileAttack, selectedId, onSelectAttack, on
  */
 export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onViewDetails, shellClass = '' }) {
   const { t, locale } = useI18n();
+  const profileSectionRef = useRef(/** @type {HTMLElement | null} */ (null));
   const [now, setNow] = useState(() => Date.now());
   const [activeFilter, setActiveFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
@@ -417,6 +431,22 @@ export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onV
     [attacks, selectedId],
   );
 
+  const scrollToAttackerProfile = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(min-width: 1024px)').matches) return;
+    requestAnimationFrame(() => {
+      profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  const handleSelectAttack = useCallback(
+    (attack) => {
+      onSelectAttack?.(attack);
+      scrollToAttackerProfile();
+    },
+    [onSelectAttack, scrollToAttackerProfile],
+  );
+
   const sparkTotal = buildSparkline(attacks, () => true);
   const sparkBlocked = buildSparkline(attacks, isIncidentBlocked);
   const sparkNonBlocked = buildSparkline(attacks, (a) => !isIncidentBlocked(a));
@@ -433,11 +463,11 @@ export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onV
   }, [attacks]);
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1920px] flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4 lg:flex-row lg:px-5 lg:py-4">
-      <div className={`flex min-h-0 min-w-0 flex-1 flex-col gap-2 ${shellClass}`}>
+    <div className="mx-auto flex w-full max-w-[1920px] flex-1 flex-col gap-3 px-3 py-3 sm:px-4 lg:h-full lg:min-h-0 lg:flex-row lg:overflow-hidden lg:px-5 lg:py-4">
+      <div className={`flex min-w-0 flex-1 flex-col gap-2 ${shellClass}`}>
         {error ? <p className="px-0.5 text-[11px] text-slark-primary">{error}</p> : null}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark">
+        <div className="flex flex-col overflow-hidden rounded-xl border border-slate-600/45 bg-slark-dark lg:min-h-0 lg:flex-1">
           <header className="shrink-0 border-b border-slate-600/45 px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -491,7 +521,7 @@ export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onV
             </div>
           </header>
 
-          <div className="thin-scrollbar-dark min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3">
+          <div className="thin-scrollbar-dark px-2 py-2 sm:px-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {visible.length === 0 ? (
               <p className="px-2 py-10 text-center text-[11px] text-slate-500">{t('monitoring.historyEmpty')}</p>
             ) : (
@@ -502,7 +532,7 @@ export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onV
                       attack={attack}
                       index={index}
                       selected={selectedId === attack.id}
-                      onPreview={onSelectAttack}
+                      onPreview={handleSelectAttack}
                       t={t}
                       locale={locale}
                     />
@@ -579,8 +609,9 @@ export function HistoryTabView({ attacks, error, selectedId, onSelectAttack, onV
         attacks={attacks}
         profileAttack={profileAttack}
         selectedId={selectedId}
-        onSelectAttack={onSelectAttack}
+        onSelectAttack={handleSelectAttack}
         onViewDetails={onViewDetails}
+        profileSectionRef={profileSectionRef}
         t={t}
         locale={locale}
       />

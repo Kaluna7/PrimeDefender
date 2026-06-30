@@ -7,8 +7,20 @@ import { SignInPanel } from '../../../components/auth/SignInPanel.jsx';
  * @param {boolean} props.open
  * @param {() => void} props.onClose
  * @param {() => void} [props.onSuccess]
+ * @param {'signup' | 'login'} [props.defaultMode]
+ * @param {string} [props.initialChallengeId]
+ * @param {string} [props.initialEmail]
+ * @param {string} [props.initialError]
  */
-export function GetStartedModal({ open, onClose, onSuccess }) {
+export function GetStartedModal({
+  open,
+  onClose,
+  onSuccess,
+  defaultMode = 'signup',
+  initialChallengeId = '',
+  initialEmail = '',
+  initialError = '',
+}) {
   const { t } = useI18n();
 
   useEffect(() => {
@@ -64,7 +76,14 @@ export function GetStartedModal({ open, onClose, onSuccess }) {
         </button>
 
         <div className="px-4 pb-4 pt-7 sm:px-8 sm:pb-6 sm:pt-8">
-          <SignInPanel compact onSuccess={handleSuccess} />
+          <SignInPanel
+            compact
+            defaultMode={defaultMode}
+            initialChallengeId={initialChallengeId}
+            initialEmail={initialEmail}
+            initialError={initialError}
+            onSuccess={handleSuccess}
+          />
         </div>
       </div>
     </div>

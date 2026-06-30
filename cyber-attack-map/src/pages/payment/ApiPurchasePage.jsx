@@ -181,7 +181,7 @@ export function ApiPurchasePage() {
     setError('');
     setMessage('');
     if (!user) {
-      navigate('/signin', { state: { from: `/purchase/checkout/${planId}` } });
+      navigate(`/?getstarted=1&return=${encodeURIComponent(`/purchase/checkout/${planId}`)}`);
       return;
     }
     if (!config?.midtransConfigured) {
@@ -252,7 +252,12 @@ export function ApiPurchasePage() {
                   {!user && !loading && (
                     <p className={`text-sm text-amber-800 dark:text-amber-300 ${activeSub ? 'mt-4' : ''}`}>
                       {t('purchase.signInRequired')}{' '}
-                      <Link to="/signin" className="font-semibold text-slark-primary underline">
+                      <Link
+                        to={`/?getstarted=1&return=${encodeURIComponent(
+                          checkoutPlanId ? `/purchase/checkout/${checkoutPlanId}` : '/purchase',
+                        )}`}
+                        className="font-semibold text-slark-primary underline"
+                      >
                         {t('profile.signIn')}
                       </Link>
                     </p>

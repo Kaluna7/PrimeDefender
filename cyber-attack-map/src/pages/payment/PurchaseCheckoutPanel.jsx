@@ -391,7 +391,7 @@ export function PurchaseCheckoutPanel({
       setUser(auth.ok ? auth.user : null);
       setLoading(false);
       if (!auth.ok) {
-        navigate('/signin', { replace: true, state: { from: `/purchase/checkout/${planId}` } });
+        navigate(`/?getstarted=1&return=${encodeURIComponent(`/purchase/checkout/${planId}`)}`, { replace: true });
       }
     })();
     return () => {
@@ -418,7 +418,7 @@ export function PurchaseCheckoutPanel({
     e.preventDefault();
     setError('');
     if (!user) {
-      navigate('/signin', { state: { from: `/purchase/checkout/${planId}` } });
+      navigate(`/?getstarted=1&return=${encodeURIComponent(`/purchase/checkout/${planId}`)}`);
       return;
     }
     if (!plan) {

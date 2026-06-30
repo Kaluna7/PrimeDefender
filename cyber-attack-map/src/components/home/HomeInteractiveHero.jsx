@@ -341,14 +341,14 @@ function CameraRig({ view }) {
       const commandZWide = narrow ? 6.35 : 5.45;
       const commandYWide = narrow ? 0.08 : 0.16;
       const zFocus = narrow ? 2.35 : 1.95;
-      const yFocus = narrow ? 0.26 : 0.32;
+      const yFocus = narrow ? 0.2 : 0.32;
       const zBook = narrow ? 2.05 : 1.72;
       const ry = 0;
       return {
         commandWidePos: new THREE.Vector3(0, commandYWide, commandZWide),
         commandWideLook: new THREE.Vector3(0, 0, 0),
         monitorFocusPos: new THREE.Vector3(0, ry + yFocus, zFocus),
-        monitorLook: new THREE.Vector3(0, ry + 0.05, 0),
+        monitorLook: new THREE.Vector3(0, ry - 0.06, 0),
         bookFocusPos: new THREE.Vector3(0, ry + 0.36, zBook),
         bookLook: new THREE.Vector3(0, ry + 0.05, 0),
       };
@@ -635,9 +635,11 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
     >
       <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
         <div
-          className={`relative min-h-[min(50vh,560px)] w-full flex-1 overflow-hidden md:min-h-0 ${
-            view === 'detail' || view === 'bookDetail' ? 'md:flex-[1.15]' : ''
-          }`}
+          className={`relative w-full overflow-hidden md:min-h-0 ${
+            view === 'detail' || view === 'bookDetail'
+              ? 'h-[min(42vh,400px)] max-h-[min(44vh,420px)] flex-none md:h-auto md:min-h-0 md:max-h-none md:flex-1'
+              : 'min-h-[min(50vh,560px)] flex-1'
+          } ${view === 'detail' || view === 'bookDetail' ? 'md:flex-[1.15]' : ''}`}
         >
           <div
             className="pointer-events-none absolute inset-0 z-0 bg-[var(--hero-bg)] bg-[radial-gradient(ellipse_75%_55%_at_50%_38%,rgba(198,40,40,0.14),transparent_62%)]"
@@ -651,7 +653,9 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
               logarithmicDepthBuffer: true,
             }}
             dpr={[1, 1.5]}
-            className="absolute inset-0 z-[1] block h-full w-full touch-none bg-[var(--hero-bg)]"
+            className={`absolute inset-x-0 bottom-0 z-[1] block h-full w-full touch-none bg-[var(--hero-bg)] ${
+              view === 'detail' || view === 'bookDetail' ? 'max-md:top-10' : 'top-0'
+            }`}
             onCreated={({ gl }) => {
               gl.setClearColor(canvasClearHex, 1);
               gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -684,7 +688,7 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
           </Canvas>
 
           <div
-            className="pointer-events-none absolute left-4 top-4 z-30 md:left-6 md:top-6"
+            className="pointer-events-none absolute left-4 top-4 z-30 hidden md:left-6 md:top-6 md:block"
             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
           >
             <p className="font-cyber transform-gpu text-xl font-bold uppercase tracking-[0.1em] text-[var(--hero-primary)] antialiased [text-shadow:0_1px_3px_rgba(15,23,42,0.9)] sm:text-xl sm:tracking-[0.12em] md:text-2xl md:tracking-[0.14em] md:[text-shadow:none]">
@@ -693,7 +697,7 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
           </div>
 
           {view === 'command' && monitorReveal > 0.2 && (
-            <div className="pointer-events-none absolute left-0 right-0 top-[4.25rem] z-20 flex justify-center px-4 md:top-10">
+            <div className="pointer-events-none absolute left-0 right-0 top-4 z-20 flex justify-center px-4 md:top-10">
               <p
                 className="max-w-md text-center font-cyber text-[11px] uppercase tracking-[0.16em] text-[var(--hero-muted)] antialiased transition-opacity duration-500 [text-shadow:0_1px_2px_rgba(15,23,42,0.75)] sm:text-xs sm:tracking-[0.2em] sm:[text-shadow:none]"
                 style={{ opacity: Math.min(1, (monitorReveal - 0.2) / 0.5) }}
@@ -715,7 +719,7 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
                 aria-hidden
               />
 
-              <div className="pointer-events-auto absolute left-0 right-0 top-[5.75rem] z-20 flex justify-center px-4 md:hidden">
+              <div className="pointer-events-auto absolute left-0 right-0 top-14 z-20 flex justify-center px-4 md:hidden">
                 <CarouselNavControl
                   label={t('home.carouselPrev')}
                   onClick={goCarouselPrev}
@@ -759,54 +763,62 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
         </div>
 
         {view === 'detail' && (
-          <aside className="flex max-h-[min(88vh,640px)] w-full shrink-0 flex-col justify-center overflow-y-auto border-t border-[var(--hero-border)] bg-[color-mix(in_srgb,var(--hero-card)_98%,transparent)] p-6 shadow-slark backdrop-blur-md md:max-h-none md:w-[min(100%,400px)] md:border-l md:border-t-0 md:py-10">
-            <p className="font-cyber text-[10px] uppercase tracking-[0.4em] text-[var(--hero-primary)]">{t('brand.name')}</p>
-            <h2 className="font-cyber mt-4 text-xl font-bold tracking-tight text-[var(--hero-text)] md:text-2xl">
-              {t('home.monitorDetailTitle')}
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--hero-muted)]">{t('home.monitorDetailBody')}</p>
-            <p className="mt-4 text-xs leading-relaxed text-[var(--hero-muted)] opacity-90">{t('home.monitorDetailHint')}</p>
-            <button
-              type="button"
-              onClick={() => navigate('/monitoring')}
-              className="font-cyber mt-8 w-full rounded-xl border border-[var(--hero-primary)] bg-[var(--hero-primary)] py-3 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-slark transition hover:border-[var(--hero-primary-hover)] hover:bg-[var(--hero-primary-hover)]"
-            >
-              {t('home.goToMonitoringPage')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCarouselIndex(0);
-                setView('command');
-              }}
-              className="font-cyber mt-3 w-full rounded-xl border border-[var(--hero-border)] bg-[var(--hero-bg)] py-3 text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-text)] transition hover:border-[var(--hero-primary)] hover:text-[var(--hero-primary)]"
-            >
-              {t('home.exitView')}
-            </button>
+          <aside className="flex min-h-0 w-full flex-1 flex-col justify-between overflow-y-auto border-t border-[var(--hero-border)] bg-[color-mix(in_srgb,var(--hero-card)_98%,transparent)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[4.5rem] shadow-slark backdrop-blur-md max-md:mt-4 sm:px-5 sm:pt-20 md:mt-0 md:max-h-none md:w-[min(100%,400px)] md:flex-none md:justify-center md:px-6 md:py-10 md:pb-6 md:border-l md:border-t-0">
+            <div className="min-h-0 shrink-0">
+              <p className="font-cyber text-[9px] uppercase tracking-[0.32em] text-[var(--hero-primary)] sm:text-[10px] sm:tracking-[0.4em]">{t('brand.name')}</p>
+              <h2 className="font-cyber mt-2 text-lg font-bold leading-tight tracking-tight text-[var(--hero-text)] sm:mt-3 sm:text-xl md:mt-4 md:text-2xl">
+                {t('home.monitorDetailTitle')}
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--hero-muted)] sm:mt-3 sm:text-sm md:mt-4">{t('home.monitorDetailBody')}</p>
+              <p className="mt-2 hidden text-[11px] leading-relaxed text-[var(--hero-muted)] opacity-90 sm:mt-3 sm:block sm:text-xs md:mt-4">{t('home.monitorDetailHint')}</p>
+            </div>
+            <div className="mt-5 shrink-0 pt-1 sm:mt-6 md:mt-8">
+              <button
+                type="button"
+                onClick={() => navigate('/monitoring')}
+                className="font-cyber w-full rounded-xl border border-[var(--hero-primary)] bg-[var(--hero-primary)] py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white shadow-slark transition hover:border-[var(--hero-primary-hover)] hover:bg-[var(--hero-primary-hover)] sm:py-3 sm:text-xs sm:tracking-[0.16em] md:text-sm md:tracking-[0.18em]"
+              >
+                {t('home.goToMonitoringPage')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCarouselIndex(0);
+                  setView('command');
+                }}
+                className="font-cyber mt-2.5 w-full rounded-xl border border-[var(--hero-border)] bg-[var(--hero-bg)] py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--hero-text)] transition hover:border-[var(--hero-primary)] hover:text-[var(--hero-primary)] sm:mt-3 sm:py-3 sm:text-xs sm:tracking-[0.18em] md:text-sm md:tracking-[0.2em]"
+              >
+                {t('home.exitView')}
+              </button>
+            </div>
           </aside>
         )}
 
         {view === 'bookDetail' && (
-          <aside className="flex max-h-[min(88vh,640px)] w-full shrink-0 flex-col justify-center overflow-y-auto border-t border-[var(--hero-border)] bg-[color-mix(in_srgb,var(--hero-card)_98%,transparent)] p-6 shadow-slark backdrop-blur-md md:max-h-none md:w-[min(100%,400px)] md:border-l md:border-t-0 md:py-10">
-            <p className="font-cyber text-[10px] uppercase tracking-[0.4em] text-[var(--hero-primary)]">{t('brand.name')}</p>
-            <h2 className="font-cyber mt-4 text-xl font-bold tracking-tight text-[var(--hero-text)] md:text-2xl">
-              {t('home.bookDetailTitle')}
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--hero-muted)]">{t('home.bookDetailBody')}</p>
-            <button
-              type="button"
-              onClick={openGuideFrom3dBook}
-              className="font-cyber mt-6 w-full rounded-xl border border-[var(--hero-primary)] bg-[var(--hero-primary)] py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:border-[var(--hero-primary-hover)] hover:bg-[var(--hero-primary-hover)]"
-            >
-              {t('home.bookDetailOpenGuide')}
-            </button>
-            <button
-              type="button"
-              onClick={exitBookDetail}
-              className="font-cyber mt-3 w-full rounded-xl border border-[var(--hero-border)] bg-[var(--hero-bg)] py-3 text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-text)] transition hover:border-[var(--hero-primary)] hover:text-[var(--hero-primary)]"
-            >
-              {t('home.exitView')}
-            </button>
+          <aside className="flex min-h-0 w-full flex-1 flex-col justify-between overflow-y-auto border-t border-[var(--hero-border)] bg-[color-mix(in_srgb,var(--hero-card)_98%,transparent)] px-4 py-5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-slark backdrop-blur-md sm:px-5 md:max-h-none md:w-[min(100%,400px)] md:flex-none md:justify-center md:px-6 md:py-10 md:pb-6 md:border-l md:border-t-0">
+            <div className="min-h-0 shrink-0">
+              <p className="font-cyber text-[9px] uppercase tracking-[0.32em] text-[var(--hero-primary)] sm:text-[10px] sm:tracking-[0.4em]">{t('brand.name')}</p>
+              <h2 className="font-cyber mt-2 text-lg font-bold leading-tight tracking-tight text-[var(--hero-text)] sm:mt-3 sm:text-xl md:mt-4 md:text-2xl">
+                {t('home.bookDetailTitle')}
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--hero-muted)] sm:mt-3 sm:text-sm md:mt-4">{t('home.bookDetailBody')}</p>
+            </div>
+            <div className="mt-5 shrink-0 pt-1 sm:mt-6 md:mt-8">
+              <button
+                type="button"
+                onClick={openGuideFrom3dBook}
+                className="font-cyber w-full rounded-xl border border-[var(--hero-primary)] bg-[var(--hero-primary)] py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition hover:border-[var(--hero-primary-hover)] hover:bg-[var(--hero-primary-hover)] sm:py-3 sm:text-xs sm:tracking-[0.16em] md:text-sm md:tracking-[0.18em]"
+              >
+                {t('home.bookDetailOpenGuide')}
+              </button>
+              <button
+                type="button"
+                onClick={exitBookDetail}
+                className="font-cyber mt-2.5 w-full rounded-xl border border-[var(--hero-border)] bg-[var(--hero-bg)] py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--hero-text)] transition hover:border-[var(--hero-primary)] hover:text-[var(--hero-primary)] sm:mt-3 sm:py-3 sm:text-xs sm:tracking-[0.18em] md:text-sm md:tracking-[0.2em]"
+              >
+                {t('home.exitView')}
+              </button>
+            </div>
           </aside>
         )}
       </div>

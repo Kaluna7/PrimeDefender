@@ -255,6 +255,19 @@ export const COUNTRY_NAME_TO_CODE = {
   "south korea": "KR",
   "north korea": "KP",
   "czech republic": "CZ",
-  "russia": "RU"
+  "russia": "RU",
+  "united states": "US",
+  "united kingdom": "GB",
+  "great britain": "GB",
+  "vietnam": "VN",
+  "netherlands": "NL",
+  "holland": "NL",
+  "ivory coast": "CI",
+  "taiwan": "TW",
+  "u.s.a.": "US",
+  "u.s.": "US",
 };
-export const COUNTRY_NAME_KEYS_LONGEST_FIRST = ["united kingdom of great britain and northern ireland","saint helena, ascension and tristan da cunha","south georgia and the south sandwich islands","korea, democratic people's republic of","united states minor outlying islands","congo, democratic republic of the","heard island and mcdonald islands","venezuela, bolivarian republic of","bonaire, sint eustatius and saba","lao people's democratic republic","saint vincent and the grenadines","bolivia, plurinational state of","micronesia, federated states of","british indian ocean territory","tanzania, united republic of","falkland islands (malvinas)","french southern territories","netherlands, kingdom of the","saint martin (french part)","iran, islamic republic of","saint pierre and miquelon","sint maarten (dutch part)","taiwan, province of china","central african republic","northern mariana islands","turks and caicos islands","united states of america","virgin islands (british)","cocos (keeling) islands","bosnia and herzegovina","svalbard and jan mayen","saint kitts and nevis","sao tome and principe","virgin islands (u.s.)","moldova, republic of","syrian arab republic","united arab emirates","antigua and barbuda","palestine, state of","trinidad and tobago","dominican republic","korea, republic of","russian federation","brunei darussalam","equatorial guinea","wallis and futuna","christmas island","french polynesia","marshall islands","papua new guinea","saint barthélemy","north macedonia","solomon islands","american samoa","cayman islands","norfolk island","western sahara","czech republic","åland islands","bouvet island","côte d'ivoire","faroe islands","french guiana","guinea-bissau","liechtenstein","new caledonia","burkina faso","cook islands","saudi arabia","sierra leone","south africa","turkmenistan","afghanistan","el salvador","isle of man","new zealand","philippines","puerto rico","saint lucia","south sudan","switzerland","timor-leste","south korea","north korea","antarctica","azerbaijan","bangladesh","cabo verde","costa rica","guadeloupe","kazakhstan","kyrgyzstan","luxembourg","madagascar","martinique","mauritania","montenegro","montserrat","mozambique","san marino","seychelles","tajikistan","uzbekistan","argentina","australia","gibraltar","greenland","guatemala","hong kong","indonesia","lithuania","mauritius","nicaragua","singapore","sri lanka","anguilla","barbados","botswana","bulgaria","cambodia","cameroon","colombia","djibouti","dominica","eswatini","ethiopia","guernsey","holy see","honduras","kiribati","malaysia","maldives","mongolia","pakistan","paraguay","pitcairn","portugal","slovakia","slovenia","suriname","thailand","viet nam","zimbabwe","albania","algeria","andorra","armenia","austria","bahamas","bahrain","belarus","belgium","bermuda","burundi","comoros","croatia","curaçao","czechia","denmark","ecuador","eritrea","estonia","finland","georgia","germany","grenada","hungary","iceland","ireland","jamaica","lebanon","lesotho","liberia","mayotte","morocco","myanmar","namibia","nigeria","réunion","romania","senegal","somalia","tokelau","tunisia","türkiye","ukraine","uruguay","vanuatu","angola","belize","bhutan","brazil","canada","cyprus","france","gambia","greece","guinea","guyana","israel","jersey","jordan","kuwait","latvia","malawi","mexico","monaco","norway","panama","poland","rwanda","serbia","sweden","tuvalu","uganda","zambia","russia","aruba","benin","chile","china","congo","egypt","gabon","ghana","haiti","india","italy","japan","kenya","libya","macao","malta","nauru","nepal","niger","palau","qatar","samoa","spain","sudan","tonga","yemen","burma","chad","cuba","fiji","guam","iraq","mali","niue","oman","peru","togo","usa","uk"];
+
+export const COUNTRY_NAME_KEYS_LONGEST_FIRST = Object.keys(COUNTRY_NAME_TO_CODE).sort(
+  (a, b) => b.length - a.length,
+);
