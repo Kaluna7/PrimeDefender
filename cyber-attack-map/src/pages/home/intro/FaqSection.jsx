@@ -45,8 +45,8 @@ export function FaqSection({ eyebrow, title, subtitle, items, docsFootnote, docs
         />
       </div>
 
-      <div className="relative mx-auto max-w-3xl">
-        <div className="text-center">
+      <div className="relative mx-auto w-full max-w-6xl">
+        <div className="mx-auto max-w-3xl text-center">
           <p className="font-cyber text-[10px] uppercase tracking-[0.4em]" style={{ color: C.primary }}>
             {eyebrow}
           </p>
@@ -58,7 +58,7 @@ export function FaqSection({ eyebrow, title, subtitle, items, docsFootnote, docs
           </p>
         </div>
 
-        <div className="mt-12 space-y-3">
+        <div className="mt-12 w-full space-y-3">
           {items.map((item) => {
             const open = openId === item.id;
             const panelId = `${baseId}-${item.id}-panel`;
@@ -67,7 +67,7 @@ export function FaqSection({ eyebrow, title, subtitle, items, docsFootnote, docs
             return (
               <article
                 key={item.id}
-                className="overflow-hidden rounded-2xl border transition-shadow duration-300"
+                className="w-full overflow-hidden rounded-2xl border transition-shadow duration-300"
                 style={{
                   borderColor: open ? 'rgba(198,40,40,0.35)' : C.border,
                   backgroundColor: open ? C.bg : C.card,
@@ -78,13 +78,13 @@ export function FaqSection({ eyebrow, title, subtitle, items, docsFootnote, docs
                   <button
                     id={btnId}
                     type="button"
-                    className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left sm:px-6 sm:py-5"
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-8 sm:py-5"
                     aria-expanded={open}
                     aria-controls={panelId}
                     onClick={() => setOpenId(open ? null : item.id)}
                   >
                     <span
-                      className="font-cyber text-sm font-semibold leading-snug sm:text-[0.95rem]"
+                      className="min-w-0 flex-1 font-cyber text-sm font-semibold leading-snug sm:text-base"
                       style={{ color: open ? C.primary : C.text }}
                     >
                       {item.question}
@@ -103,7 +103,7 @@ export function FaqSection({ eyebrow, title, subtitle, items, docsFootnote, docs
                 >
                   <div className="overflow-hidden">
                     <p
-                      className="border-t px-5 pb-5 pt-3 text-sm leading-relaxed sm:px-6 sm:pb-6 sm:pt-4"
+                      className="border-t px-5 pb-5 pt-3 text-sm leading-relaxed sm:px-8 sm:pb-6 sm:pt-4 sm:text-[15px]"
                       style={{ borderColor: C.border, color: C.textMuted }}
                     >
                       {item.answer}

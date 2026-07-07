@@ -1,16 +1,40 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import { IntegrationDocsHeader } from './IntegrationDocsHeader.jsx';
 import { IntegrationDocsSidebar } from './IntegrationDocsSidebar.jsx';
 import { IntegrationGuideSections } from './IntegrationGuideSections.jsx';
 import { integrationGuide } from './integrationGuide.js';
 
+/** @param {string | null} value */
+function parseDocsStack(value) {
+  return value === 'javascript' ? 'javascript' : 'python';
+}
+
 export function IntegrationDocsPage() {
   const { locale, t } = useI18n();
   const doc = integrationGuide[locale] || integrationGuide.en;
-  const [stack, setStack] = useState(/** @type {import('./integrationGuide.js').IntegrationStack} */ ('python'));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [stack, setStack] = useState(() => parseDocsStack(searchParams.get('stack')));
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const fromUrl = parseDocsStack(searchParams.get('stack'));
+    setStack((current) => (current === fromUrl ? current : fromUrl));
+  }, [searchParams]);
+
+  const handleStackChange = (next) => {
+    setStack(next);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === 'python') params.delete('stack');
+        else params.set('stack', next);
+        return params;
+      },
+      { replace: true },
+    );
+  };
 
   useEffect(() => {
     document.title = `${t('brand.name')} – ${t('nav.docs')}`;
@@ -41,7 +65,7 @@ export function IntegrationDocsPage() {
   return (
     <div className="thin-scrollbar h-full overflow-y-auto bg-slark-bg dark:bg-slark-dark">
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-60 lg:flex-col lg:overflow-hidden lg:border-r lg:border-slark-border lg:bg-slark-card/40 lg:px-6 lg:py-10 dark:lg:bg-slark-dark/50 xl:w-64">
-        <IntegrationDocsSidebar doc={doc} stack={stack} onStackChange={setStack} />
+        <IntegrationDocsSidebar doc={doc} stack={stack} onStackChange={handleStackChange} className="min-h-0" />
       </aside>
 
       {menuOpen ? (
@@ -63,7 +87,7 @@ export function IntegrationDocsPage() {
         <IntegrationDocsSidebar
           doc={doc}
           stack={stack}
-          onStackChange={setStack}
+          onStackChange={handleStackChange}
           onNavigate={closeMenu}
           className="!h-auto"
         />
@@ -92,8 +116,7 @@ export function IntegrationDocsPage() {
               variant="page"
               locale={locale}
               stack={stack}
-              onStackChange={setStack}
-              hideStackPicker
+              onStackChange={handleStackChange}
             />
           </article>
         </main>

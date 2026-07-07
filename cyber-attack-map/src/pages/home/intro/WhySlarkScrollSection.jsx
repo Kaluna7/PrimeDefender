@@ -11,14 +11,6 @@ const ENTRANCE_SHARE = 0.07;
 const PAUSE_SHARE = 0.18;
 const ANIM_SHARE = 1 - ENTRANCE_SHARE - PAUSE_SHARE;
 
-const TEXT_PANEL = {
-  bg: C.defense.card,
-  iconBg: C.onDark.elevated,
-  border: C.defense.border,
-  text: C.onDark.text,
-  textMuted: C.onDark.textMuted,
-};
-
 /** Glass shards — each flies in from a corner/edge, then merges into unified blur. */
 const SLARK_GLASS_SHARDS = [
   { clip: 'polygon(0% 0%, 44% 0%, 26% 46%, 0% 58%)', ox: 78, oy: -56, rot: 28, delay: 0 },
@@ -46,8 +38,8 @@ function easeOut(t) {
  * @param {{ isMobile: boolean, reducedMotion: boolean }} opts
  */
 function applySlarkGlassBelt(beltEl, p, { isMobile, reducedMotion }) {
-  const beltT = clamp01((p - 0.68) / 0.32);
-  const beltVisible = p >= 0.68;
+  const beltT = clamp01((p - 0.78) / 0.22);
+  const beltVisible = p >= 0.78;
   const shardScale = isMobile ? 0.85 : 1;
   const scatterMax = isMobile ? 1.45 : 1.65;
 
@@ -161,38 +153,50 @@ function SlarkFinaleGlassBelt({ beltRef }) {
   );
 }
 
-function FeatureIcon({ type }) {
-  if (type === 'map') {
-    return (
-      <svg className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
-    );
-  }
-  if (type === 'middleware') {
-    return (
-      <svg className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M4 7h6v6H4zM14 7h6v6h-6zM9 17h6v4H9z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-    );
-  }
+function WhySlarkFeatureCardContent({ feature, index, className = '' }) {
+  const step = String(index + 1).padStart(2, '0');
+  const accent = feature.accent || C.primary;
+
   return (
-    <svg className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 3v2M5.5 6.5l1.4 1.4M18.5 6.5l-1.4 1.4M4 12h2M18 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M8.5 14.5a3.5 3.5 0 0 0 7 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+    <article className={`why-slark-feature-card ${className}`.trim()}>
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start justify-end">
+          <span
+            className="font-cyber text-[10px] font-bold tracking-[0.28em]"
+            style={{ color: C.textMuted }}
+          >
+            {step}
+          </span>
+        </div>
+
+        {feature.tag ? (
+          <p
+            className="mt-4 font-cyber text-[10px] font-bold uppercase tracking-[0.22em]"
+            style={{ color: accent }}
+          >
+            {feature.tag}
+          </p>
+        ) : null}
+
+        <h3
+          className={`font-cyber font-bold leading-snug ${feature.tag ? 'mt-2' : 'mt-4'} text-base sm:text-lg`}
+          style={{ color: C.text }}
+        >
+          {feature.title}
+        </h3>
+        <p className="mt-2.5 text-sm leading-relaxed" style={{ color: C.textMuted }}>
+          {feature.body}
+        </p>
+      </div>
+    </article>
   );
 }
 
 function WhySlarkTitle({ title, className = '' }) {
   const parts = title.split(/(Slark)/i);
   return (
-    <div
-      className="inline-block rounded-2xl border px-6 py-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)] sm:px-10 sm:py-5"
-      style={{ borderColor: TEXT_PANEL.border, backgroundColor: TEXT_PANEL.bg }}
-    >
-      <h2 className={`font-cyber font-bold ${className}`} style={{ color: TEXT_PANEL.text }}>
+    <div className="why-slark-feature-card why-slark-title-card inline-block px-6 py-4 sm:px-10 sm:py-5">
+      <h2 className={`font-cyber font-bold ${className}`} style={{ color: C.text }}>
         {parts.map((part, i) =>
           /^slark$/i.test(part) ? (
             <span key={i} style={{ color: C.primary }}>
@@ -207,36 +211,19 @@ function WhySlarkTitle({ title, className = '' }) {
   );
 }
 
-const FeatureCard = forwardRef(function FeatureCard({ feature }, ref) {
+const FeatureCard = forwardRef(function FeatureCard({ feature, index }, ref) {
   return (
-    <article
+    <div
       ref={ref}
-      className="why-slark-card pointer-events-none absolute inset-0 rounded-2xl border p-4 shadow-[0_16px_48px_rgba(0,0,0,0.35)] sm:p-5"
+      className="why-slark-card pointer-events-none absolute inset-0"
       style={{
         opacity: 0,
         visibility: 'hidden',
         transformOrigin: 'center center',
-        borderColor: TEXT_PANEL.border,
-        backgroundColor: TEXT_PANEL.bg,
       }}
     >
-      <div
-        className="inline-flex rounded-xl border p-2.5 sm:p-3"
-        style={{
-          color: feature.accent,
-          borderColor: TEXT_PANEL.border,
-          backgroundColor: TEXT_PANEL.iconBg,
-        }}
-      >
-        <FeatureIcon type={feature.type} />
-      </div>
-      <h3 className="font-cyber mt-3 text-sm font-bold sm:mt-4 sm:text-base" style={{ color: TEXT_PANEL.text }}>
-        {feature.title}
-      </h3>
-      <p className="mt-2 text-xs leading-relaxed sm:text-sm" style={{ color: TEXT_PANEL.textMuted }}>
-        {feature.body}
-      </p>
-    </article>
+      <WhySlarkFeatureCardContent feature={feature} index={index} />
+    </div>
   );
 });
 
@@ -246,7 +233,7 @@ const FeatureCard = forwardRef(function FeatureCard({ feature }, ref) {
  * @param {string} props.brandName
  * @param {string} [props.finaleTagline]
  * @param {string} [props.scrollHint]
- * @param {{ type: string, title: string, body: string, accent: string }[]} props.features
+ * @param {{ type: string; tag?: string; title: string; body: string; accent: string }[]} props.features
  */
 export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollHint, features }) {
   const sectionRef = useRef(/** @type {HTMLElement | null} */ (null));
@@ -307,10 +294,29 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
     if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: 0 });
 
     const cardWindows = [
-      { in: 0.1, out: 0.32 },
-      { in: 0.34, out: 0.56 },
-      { in: 0.58, out: 0.66 },
+      { in: 0.14, out: 0.34 },
+      { in: 0.36, out: 0.56 },
+      { in: 0.58, out: 0.78 },
     ];
+
+    const TITLE_HOLD_END = 0.06;
+    const TITLE_FADE_END = 0.14;
+
+    /** Globe assembles while cards 2–3 play. */
+    function mapGlobeProgress(p) {
+      return clamp01((p - 0.36) / 0.48);
+    }
+
+    function headingAlpha(p) {
+      if (p < TITLE_HOLD_END) return 1;
+      if (p < TITLE_FADE_END) return 1 - (p - TITLE_HOLD_END) / (TITLE_FADE_END - TITLE_HOLD_END);
+      return 0;
+    }
+
+    function sceneAlpha(p) {
+      if (p < TITLE_FADE_END) return 0;
+      return Math.min(1, (p - TITLE_FADE_END) / 0.06);
+    }
 
     function scaleFromSmall(t) {
       if (t <= 0) return 0.55;
@@ -344,8 +350,8 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
 
     function showScene(p) {
       globe.setEntrance(1);
-      globe.setProgress(p);
-      if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: 1 });
+      globe.setProgress(mapGlobeProgress(p));
+      if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: sceneAlpha(p) });
 
       cards.forEach((card, i) => {
         const win = cardWindows[i];
@@ -357,12 +363,11 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
       });
 
       if (heading) {
-        const headAlpha = p < 0.12 ? 1 : Math.max(0, 1 - (p - 0.12) / 0.1);
-        gsap.set(heading, { autoAlpha: headAlpha });
+        gsap.set(heading, { autoAlpha: headingAlpha(p) });
       }
 
       if (finale) {
-        const inFinale = p >= 0.65;
+        const inFinale = p >= 0.78;
         gsap.set(finale, {
           autoAlpha: inFinale ? 1 : 0,
           visibility: inFinale ? 'visible' : 'hidden',
@@ -370,9 +375,9 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
       }
 
       if (finaleText) {
-        const textT = Math.max(0, (p - 0.7) / 0.14);
+        const textT = Math.max(0, (p - 0.82) / 0.12);
         const textEased = 1 - (1 - Math.min(1, textT)) ** 3;
-        const textVisible = p >= 0.7 && textEased > 0.01;
+        const textVisible = p >= 0.82 && textEased > 0.01;
         gsap.set(finaleText, {
           opacity: textVisible ? textEased : 0,
           visibility: textVisible ? 'visible' : 'hidden',
@@ -388,7 +393,7 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
       }
 
       if (scrollHintEl) {
-        const hintAlpha = p < 0.08 ? 1 : Math.max(0, 1 - (p - 0.08) / 0.06);
+        const hintAlpha = p < 0.04 ? 1 : Math.max(0, 1 - (p - 0.04) / 0.06);
         gsap.set(scrollHintEl, { autoAlpha: hintAlpha });
       }
     }
@@ -397,7 +402,7 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
       const eased = 1 - (1 - t) ** 2.2;
       globe.setEntrance(eased);
       globe.setProgress(0);
-      if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: eased });
+      if (sceneWrap) gsap.set(sceneWrap, { autoAlpha: 0 });
       if (heading) gsap.set(heading, { autoAlpha: eased });
       cards.forEach((card) => {
         if (!card) return;
@@ -477,29 +482,8 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
           <WhySlarkTitle title={title} className="text-3xl sm:text-5xl md:text-6xl" />
         </div>
         <div className="mx-auto mt-12 grid max-w-6xl gap-5 md:grid-cols-3">
-          {features.map((feature) => (
-            <article
-              key={feature.title}
-              className="rounded-2xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)]"
-              style={{ borderColor: TEXT_PANEL.border, backgroundColor: TEXT_PANEL.bg }}
-            >
-              <div
-                className="inline-flex rounded-xl border p-3"
-                style={{
-                  color: feature.accent,
-                  borderColor: TEXT_PANEL.border,
-                  backgroundColor: TEXT_PANEL.iconBg,
-                }}
-              >
-                <FeatureIcon type={feature.type} />
-              </div>
-              <h3 className="font-cyber mt-5 text-base font-bold" style={{ color: TEXT_PANEL.text }}>
-                {feature.title}
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed" style={{ color: TEXT_PANEL.textMuted }}>
-                {feature.body}
-              </p>
-            </article>
+          {features.map((feature, index) => (
+            <WhySlarkFeatureCardContent key={feature.title} feature={feature} index={index} />
           ))}
         </div>
       </div>
@@ -520,12 +504,13 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
           <canvas ref={canvasRef} className="block h-full w-full" aria-hidden />
         </div>
 
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[min(18rem,calc(100vw-2.5rem))] -translate-x-1/2 -translate-y-1/2 sm:w-72">
-          <div className="relative min-h-[10.5rem] sm:min-h-[11.5rem]">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-[min(21rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 sm:w-[22rem]">
+          <div className="relative min-h-[12.5rem] sm:min-h-[13.5rem]">
             {features.map((feature, i) => (
               <FeatureCard
                 key={feature.title}
                 feature={feature}
+                index={i}
                 ref={(el) => {
                   cardsRef.current[i] = el;
                 }}

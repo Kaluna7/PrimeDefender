@@ -9,27 +9,20 @@ import {
 
 /** @typedef {'signup' | 'login' | 'verify'} AuthMode */
 
-function OrDivider({ label, compact }) {
+function OrDivider({ label }) {
   return (
-    <div className={`flex items-center ${compact ? 'gap-2 py-0' : 'gap-3 py-1'}`}>
-      <div className="h-px flex-1 bg-slark-border" />
-      <span className={`shrink-0 font-medium uppercase tracking-wider text-slark-muted ${compact ? 'text-[10px]' : 'text-xs'}`}>
-        {label}
-      </span>
-      <div className="h-px flex-1 bg-slark-border" />
+    <div className="auth-divider">
+      <div className="auth-divider-line" />
+      <span className="auth-divider-label">{label}</span>
+      <div className="auth-divider-line" />
     </div>
   );
 }
 
-function GoogleButton({ href, label, compact }) {
+function GoogleButton({ href, label }) {
   return (
-    <a
-      href={href}
-      className={`flex w-full items-center justify-center rounded-xl border border-slark-border bg-slark-bg font-semibold text-slark-text shadow-sm transition hover:bg-slark-card ${
-        compact ? 'gap-2 px-3 py-2 text-xs' : 'gap-3 px-4 py-3 text-sm'
-      }`}
-    >
-      <svg className={compact ? 'h-4 w-4' : 'h-5 w-5'} viewBox="0 0 24 24" aria-hidden>
+    <a href={href} className="auth-btn-google">
+      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
         <path
           fill="#4285F4"
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -52,30 +45,28 @@ function GoogleButton({ href, label, compact }) {
   );
 }
 
-function Field({ label, children, compact }) {
+function Field({ label, children }) {
   return (
     <label className="block">
-      <span className={`font-medium uppercase tracking-wider text-slark-primary/70 ${compact ? 'text-[10px]' : 'text-xs'}`}>
-        {label}
-      </span>
-      <div className={compact ? 'mt-1' : 'mt-2'}>{children}</div>
+      <span className="auth-field-label">{label}</span>
+      {children}
     </label>
   );
 }
 
-const inputClass =
-  'w-full rounded-xl border border-slark-border bg-slark-bg text-slark-text outline-none ring-slark-primary/30 focus:ring-2 disabled:opacity-50';
+function FormInlineFeedback({ error, message }) {
+  if (!error && !message) return null;
 
-function inputSizeClass(compact) {
-  return compact
-    ? 'px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm'
-    : 'px-4 py-3 text-sm';
-}
-
-function primaryBtnClass(compact) {
-  return `w-full rounded-xl bg-slark-primary font-bold uppercase tracking-widest text-white transition hover:bg-slark-primary-hover disabled:opacity-50 ${
-    compact ? 'px-3 py-2 text-[11px] sm:py-2.5 sm:text-xs' : 'px-4 py-3 text-sm'
-  }`;
+  return (
+    <div aria-live="polite">
+      {error ? (
+        <p className="auth-inline-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {!error && message ? <p className="auth-inline-success">{message}</p> : null}
+    </div>
+  );
 }
 
 /**
@@ -85,7 +76,6 @@ function primaryBtnClass(compact) {
  * @param {string} [props.initialEmail]
  * @param {string} [props.initialError]
  * @param {() => void} [props.onSuccess]
- * @param {boolean} [props.compact]
  * @param {string} [props.className]
  */
 export function SignInPanel({
@@ -94,7 +84,6 @@ export function SignInPanel({
   initialEmail = '',
   initialError = '',
   onSuccess,
-  compact = false,
   className = '',
 }) {
   const { t } = useI18n();
@@ -238,78 +227,50 @@ export function SignInPanel({
         ? t('auth.loginSubtitle')
         : t('auth.signUpSubtitle');
 
-  const formSpace = compact ? 'mt-4 space-y-3' : 'mt-6 space-y-4';
-  const alertClass = compact
-    ? 'mt-3 rounded-lg border px-2.5 py-1.5 text-xs'
-    : 'mt-4 rounded-lg border px-3 py-2 text-sm';
-  const footerClass = compact
-    ? 'mt-3 text-center text-[11px] text-slark-muted sm:text-xs'
-    : 'mt-5 text-center text-sm text-slark-muted';
-
   return (
     <div className={className}>
-      <p className={`font-cyber uppercase tracking-[0.35em] text-slark-primary/80 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
-        {t('brand.name')}
-      </p>
-      <h2
-        id="get-started-title"
-        className={`font-cyber font-bold tracking-wide text-slark-text ${
-          compact ? 'mt-1 text-lg sm:text-2xl' : 'mt-2 text-xl sm:text-2xl'
-        }`}
-      >
+      <p className="auth-panel-brand">{t('brand.name')}</p>
+      <h2 id="get-started-title" className="auth-panel-title">
         {title}
       </h2>
-      <p className={`leading-relaxed text-slark-muted ${compact ? 'mt-1 line-clamp-2 text-[11px] sm:text-sm' : 'mt-2 text-sm'}`}>
-        {subtitle}
-      </p>
-
-      {error && (
-        <p className={`${alertClass} border-red-200 bg-red-50 text-red-700`}>
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className={`${alertClass} border-emerald-200 bg-emerald-50 text-emerald-800`}>
-          {message}
-        </p>
-      )}
+      <p className="auth-panel-subtitle">{subtitle}</p>
 
       {mode === 'verify' ? (
-        <form className={formSpace} onSubmit={handleVerify}>
-          {verifyEmail && (
-            <p className={`text-slark-muted ${compact ? 'text-[10px]' : 'text-xs'}`}>
+        <form className="auth-form" onSubmit={handleVerify}>
+          {verifyEmail ? (
+            <p className="auth-verify-hint">
               {t('auth.codeSentTo')}{' '}
-              <span className="font-medium text-slark-text">
-                {decodeURIComponent(verifyEmail)}
-              </span>
+              <span className="auth-verify-email">{decodeURIComponent(verifyEmail)}</span>
             </p>
-          )}
-          <Field label={t('auth.codeLabel')} compact={compact}>
+          ) : null}
+          <Field label={t('auth.codeLabel')}>
             <input
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(e) => {
+                setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                if (error) setError('');
+              }}
               disabled={!challengeId || busy}
-              className={`${inputClass} ${inputSizeClass(compact)} text-center font-mono tracking-[0.35em] ${
-                compact ? 'text-xl' : 'text-2xl tracking-[0.4em]'
-              }`}
+              className="auth-input auth-input--code"
               placeholder="000000"
             />
           </Field>
+          <FormInlineFeedback error={error} message={message} />
           <button
             type="submit"
             disabled={!challengeId || code.length < 6 || busy}
-            className={primaryBtnClass(compact)}
+            className="auth-btn-primary"
           >
             {busy ? t('auth.verifying') : t('auth.verifyButton')}
           </button>
-          <p className={`text-center text-slark-muted ${compact ? 'text-[10px]' : 'text-xs'}`}>
+          <p className="auth-back-link">
             <button
               type="button"
-              className="font-semibold text-slark-primary hover:underline"
+              className="auth-link"
               onClick={() => switchMode(defaultMode)}
             >
               {t('auth.backToAuth')}
@@ -318,101 +279,110 @@ export function SignInPanel({
         </form>
       ) : mode === 'signup' ? (
         <>
-          <form className={formSpace} onSubmit={handleSignUp}>
-            <Field label={t('auth.emailLabel')} compact={compact}>
+          <form className="auth-form" onSubmit={handleSignUp}>
+            <Field label={t('auth.emailLabel')}>
               <input
                 type="email"
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 disabled={busy}
-                className={`${inputClass} ${inputSizeClass(compact)}`}
+                className="auth-input"
                 placeholder="you@company.com"
               />
             </Field>
-            <Field label={t('auth.passwordLabel')} compact={compact}>
+            <Field label={t('auth.passwordLabel')}>
               <input
                 type="password"
                 autoComplete="new-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 disabled={busy}
-                className={`${inputClass} ${inputSizeClass(compact)}`}
+                className="auth-input"
               />
             </Field>
-            <Field label={t('auth.confirmPasswordLabel')} compact={compact}>
+            <Field label={t('auth.confirmPasswordLabel')}>
               <input
                 type="password"
                 autoComplete="new-password"
                 required
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 disabled={busy}
-                className={`${inputClass} ${inputSizeClass(compact)}`}
+                className="auth-input"
               />
             </Field>
-            <button type="submit" disabled={busy} className={primaryBtnClass(compact)}>
+            <FormInlineFeedback error={error} message={message} />
+            <button type="submit" disabled={busy} className="auth-btn-primary">
               {busy ? t('auth.signingUp') : t('auth.signUpButton')}
             </button>
           </form>
 
-          <OrDivider label={t('auth.orDivider')} compact={compact} />
-          <GoogleButton href={googleUrl} label={t('auth.continueGoogle')} compact={compact} />
+          <OrDivider label={t('auth.orDivider')} />
+          <GoogleButton href={googleUrl} label={t('auth.continueGoogle')} />
 
-          <p className={footerClass}>
+          <p className="auth-footer">
             {t('auth.alreadyHaveAccount')}{' '}
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className="font-semibold text-slark-primary hover:underline"
-            >
+            <button type="button" onClick={() => switchMode('login')} className="auth-link">
               {t('auth.loginLink')}
             </button>
           </p>
         </>
       ) : (
         <>
-          <form className={formSpace} onSubmit={handleLogin}>
-            <Field label={t('auth.emailLabel')} compact={compact}>
+          <form className="auth-form" onSubmit={handleLogin}>
+            <Field label={t('auth.emailLabel')}>
               <input
                 type="email"
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 disabled={busy}
-                className={`${inputClass} ${inputSizeClass(compact)}`}
+                className="auth-input"
                 placeholder="you@company.com"
               />
             </Field>
-            <Field label={t('auth.passwordLabel')} compact={compact}>
+            <Field label={t('auth.passwordLabel')}>
               <input
                 type="password"
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 disabled={busy}
-                className={`${inputClass} ${inputSizeClass(compact)}`}
+                className="auth-input"
               />
             </Field>
-            <button type="submit" disabled={busy} className={primaryBtnClass(compact)}>
+            <FormInlineFeedback error={error} message={message} />
+            <button type="submit" disabled={busy} className="auth-btn-primary">
               {busy ? t('auth.loggingIn') : t('auth.loginButton')}
             </button>
           </form>
 
-          <OrDivider label={t('auth.orDivider')} compact={compact} />
-          <GoogleButton href={googleUrl} label={t('auth.continueGoogle')} compact={compact} />
+          <OrDivider label={t('auth.orDivider')} />
+          <GoogleButton href={googleUrl} label={t('auth.continueGoogle')} />
 
-          <p className={footerClass}>
+          <p className="auth-footer">
             {t('auth.noAccount')}{' '}
-            <button
-              type="button"
-              onClick={() => switchMode('signup')}
-              className="font-semibold text-slark-primary hover:underline"
-            >
+            <button type="button" onClick={() => switchMode('signup')} className="auth-link">
               {t('auth.signUpLink')}
             </button>
           </p>

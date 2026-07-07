@@ -3,29 +3,22 @@ import { useMemo } from 'react';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
 import { LandingHeader } from './LandingHeader.jsx';
 import { LandingFooter } from './LandingFooter.jsx';
+import { LandingHeroTypingTitle } from './LandingHeroTypingTitle.jsx';
 import { WhySlarkScrollSection } from './WhySlarkScrollSection.jsx';
 import { WhyDefenseSection } from './WhyDefenseSection.jsx';
 import { FlowSection } from './FlowSection.jsx';
 import { FaqSection } from './FaqSection.jsx';
+import { PricingSection } from './PricingSection.jsx';
 import { LandingAiChatFab } from './LandingAiChatFab.jsx';
 
 import numberVideo from '../../../assets/video/number.mp4';
 import mapVideo from '../../../assets/video/map.mp4';
+import timeVideo from '../../../assets/video/time.mp4';
+import trustVideo from '../../../assets/video/trust.mp4';
+import complianceVideo from '../../../assets/video/compliance.mp4';
+import heroBg from '../../../assets/bg.png';
 
 import { SLARK as C } from '../../../theme/slarkColors.js';
-
-function SectionHeading({ eyebrow, title }) {
-  return (
-    <div className="text-center">
-      <p className="font-cyber text-[10px] uppercase tracking-[0.4em]" style={{ color: C.primary }}>
-        {eyebrow}
-      </p>
-      <h2 className="font-cyber mt-3 text-2xl font-bold sm:text-3xl" style={{ color: C.text }}>
-        {title}
-      </h2>
-    </div>
-  );
-}
 
 /**
  * Landing publik untuk tamu (belum login) — marketing, fitur, pricing.
@@ -33,11 +26,37 @@ function SectionHeading({ eyebrow, title }) {
 export function LandingPage({ onGetStarted }) {
   const { t } = useI18n();
 
-  const features = [
-    { type: 'map', title: t('home.feature1Title'), body: t('home.feature1Body'), accent: C.primary },
-    { type: 'middleware', title: t('home.feature2Title'), body: t('home.feature2Body'), accent: C.dark },
-    { type: 'alert', title: t('home.feature3Title'), body: t('home.feature3Body'), accent: C.primary },
-  ];
+  const heroTypingLines = useMemo(
+    () => [t('home.heroTitle'), t('home.heroTyping2'), t('home.heroTyping3')],
+    [t],
+  );
+
+  const features = useMemo(
+    () => [
+      {
+        type: 'map',
+        tag: t('home.feature1Tag'),
+        title: t('home.feature1Title'),
+        body: t('home.feature1Body'),
+        accent: C.primary,
+      },
+      {
+        type: 'keys',
+        tag: t('home.feature2Tag'),
+        title: t('home.feature2Title'),
+        body: t('home.feature2Body'),
+        accent: C.primary,
+      },
+      {
+        type: 'blocking',
+        tag: t('home.feature3Tag'),
+        title: t('home.feature3Title'),
+        body: t('home.feature3Body'),
+        accent: C.primary,
+      },
+    ],
+    [t],
+  );
 
   const defenseFootnotes = useMemo(
     () => [
@@ -64,6 +83,7 @@ export function LandingPage({ onGetStarted }) {
         body: t('home.defense2Body'),
         badge: t('home.defense2Badge'),
         highlight: t('home.defense2Highlight'),
+        videoSrc: timeVideo,
       },
       {
         type: 'trust',
@@ -71,6 +91,7 @@ export function LandingPage({ onGetStarted }) {
         body: t('home.defense3Body'),
         badge: t('home.defense3Badge'),
         highlight: t('home.defense3Highlight'),
+        videoSrc: trustVideo,
       },
       {
         type: 'compliance',
@@ -78,6 +99,7 @@ export function LandingPage({ onGetStarted }) {
         body: t('home.defense4Body'),
         badge: t('home.defense4Badge'),
         highlight: t('home.defense4Highlight'),
+        videoSrc: complianceVideo,
       },
       {
         type: 'speed',
@@ -98,33 +120,8 @@ export function LandingPage({ onGetStarted }) {
       type: 'ingest',
       title: t('home.flowStep3Title'),
       body: t('home.flowStep3Body'),
-      link: { href: '/docs', label: t('home.flowStep3GuideLink') },
     },
     { type: 'map', title: t('home.flowStep4Title'), body: t('home.flowStep4Body') },
-  ];
-
-  const tiers = [
-    {
-      name: t('home.tierObserver'),
-      price: t('home.tierObserverPrice'),
-      desc: t('home.tierObserverDesc'),
-      accent: C.dark,
-      popular: false,
-    },
-    {
-      name: t('home.tierSentinel'),
-      price: t('home.tierSentinelPrice'),
-      desc: t('home.tierSentinelDesc'),
-      accent: C.primary,
-      popular: true,
-    },
-    {
-      name: t('home.tierFortress'),
-      price: t('home.tierFortressPrice'),
-      desc: t('home.tierFortressDesc'),
-      accent: C.dark,
-      popular: false,
-    },
   ];
 
   const faqItems = useMemo(
@@ -143,73 +140,78 @@ export function LandingPage({ onGetStarted }) {
     <div className="relative min-h-full w-full text-[#111827]" style={{ backgroundColor: C.bg }}>
       <LandingHeader onGetStarted={onGetStarted} />
 
-      <div className="relative flex min-h-[100dvh] flex-col">
+      <div id="landing-hero" className="relative flex min-h-[100dvh] flex-col overflow-hidden">
         <div className="h-16 shrink-0 sm:h-[4.25rem]" aria-hidden />
 
-        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-          <div
-            className="absolute -left-32 top-20 h-96 w-96 rounded-full blur-[100px]"
-            style={{ backgroundColor: 'rgba(198,40,40,0.06)' }}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <img
+            src={heroBg}
+            alt=""
+            className="h-full w-full scale-[1.02] object-cover object-[center_42%]"
+            fetchPriority="high"
           />
+          <div className="landing-hero-overlay-top absolute inset-0" />
+          <div className="landing-hero-overlay-side absolute inset-0" />
           <div
-            className="absolute -right-24 top-[40%] h-80 w-80 rounded-full blur-[90px]"
-            style={{ backgroundColor: 'rgba(31,41,55,0.04)' }}
+            className="absolute inset-0 opacity-40"
+            style={{
+              background:
+                'radial-gradient(ellipse 55% 45% at 72% 58%, rgba(198,40,40,0.18) 0%, transparent 70%)',
+            }}
           />
         </div>
 
-        <section className="relative flex flex-1 flex-col justify-center px-4 py-8 sm:px-6 sm:py-10">
-          <div className="mx-auto w-full max-w-3xl">
-            <div className="animate-home-intro-in text-center opacity-0 sm:text-left" style={{ animationDelay: '0.05s' }}>
-            <p className="font-cyber text-[10px] uppercase tracking-[0.45em]" style={{ color: C.primary }}>
-              {t('brand.name')}
-            </p>
-            <p
-              className="mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]"
-              style={{ borderColor: C.border, color: C.dark }}
+        <section className="landing-hero-content relative flex min-h-0 flex-1 flex-col justify-between sm:justify-start pl-6 pr-4 sm:pl-10 sm:pr-6 lg:pl-14 lg:pr-10 xl:pl-20">
+          <div className="w-full text-left">
+            <div
+              className="animate-home-intro-in w-full max-w-4xl opacity-0 sm:max-w-5xl lg:max-w-[64rem] xl:max-w-[74rem] 2xl:max-w-[80rem]"
+              style={{ animationDelay: '0.05s' }}
             >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: C.primary }} />
-              {t('home.introEyebrow')}
-            </p>
-            <h1
-              className="font-cyber mt-6 text-3xl font-bold leading-tight sm:text-4xl lg:text-[2.65rem]"
-              style={{ color: C.text }}
-            >
-              {t('home.heroTitle')}
-            </h1>
+              <div className="landing-hero-typing-slot">
+                <LandingHeroTypingTitle
+                  lines={heroTypingLines}
+                  className="landing-hero-title font-cyber mt-5 text-[2.15rem] font-bold leading-[1.12] sm:mt-6 sm:text-[2.85rem] md:text-[3.35rem] lg:text-[3.85rem] lg:leading-[1.08] xl:text-[4.35rem] 2xl:text-[4.65rem]"
+                />
+              </div>
+            </div>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start">
+            <div
+              className="landing-hero-cta-desktop animate-home-intro-in hidden w-full flex-col gap-3 opacity-0 sm:flex sm:flex-row sm:justify-start"
+              style={{ animationDelay: '0.18s' }}
+            >
               <button
                 type="button"
                 onClick={onGetStarted}
-                className="font-cyber rounded-xl border border-[#C62828] bg-[#C62828] px-6 py-3.5 text-xs font-bold uppercase tracking-[0.24em] text-white shadow-[0_4px_14px_rgba(198,40,40,0.25)] transition hover:border-[#B71C1C] hover:bg-[#B71C1C] sm:text-sm"
+                className="landing-hero-cta-primary font-cyber text-xs font-bold uppercase tracking-[0.22em] text-white transition sm:text-sm"
               >
                 {t('home.introCtaPrimary')}
               </button>
               <Link
                 to="/docs"
-                className="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] px-6 py-3.5 text-xs font-semibold uppercase tracking-[0.2em] text-[#1F2937] transition hover:border-[#C62828] hover:text-[#C62828] sm:text-sm"
+                className="landing-hero-cta-secondary inline-flex items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] transition sm:text-sm"
               >
                 {t('home.introCtaSecondary')}
               </Link>
             </div>
+          </div>
 
-            <div className="mt-10 grid grid-cols-3 gap-3 pt-8">
-              {[
-                { value: '24/7', label: t('home.hero3dLine1'), color: C.primary },
-                { value: 'API', label: t('home.feature2Title'), color: C.dark },
-                { value: 'Live', label: t('home.feature1Title'), color: C.primary },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center sm:text-left">
-                  <p className="font-cyber text-lg font-bold sm:text-xl" style={{ color: stat.color }}>
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-[10px] uppercase tracking-wider sm:text-xs" style={{ color: C.textMuted }}>
-                    {stat.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-            </div>
+          <div
+            className="landing-hero-cta-mobile animate-home-intro-in flex w-full flex-col gap-3 opacity-0 sm:hidden"
+            style={{ animationDelay: '0.18s' }}
+          >
+            <button
+              type="button"
+              onClick={onGetStarted}
+              className="landing-hero-cta-primary font-cyber text-xs font-bold uppercase tracking-[0.22em] text-white transition"
+            >
+              {t('home.introCtaPrimary')}
+            </button>
+            <Link
+              to="/docs"
+              className="landing-hero-cta-secondary inline-flex items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] transition"
+            >
+              {t('home.introCtaSecondary')}
+            </Link>
           </div>
         </section>
       </div>
@@ -236,57 +238,16 @@ export function LandingPage({ onGetStarted }) {
         eyebrow={t('home.flowEyebrow')}
         title={t('home.sectionFlow')}
         subtitle={t('home.flowSubtitle')}
+        stepLabel={t('home.introStepLabel')}
         steps={flowSteps}
       />
 
-      <section id="pricing" className="relative px-4 py-20 sm:px-6" style={{ backgroundColor: C.card }}>
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading eyebrow={t('home.ctaApiPurchase')} title={t('home.sectionPricing')} />
-          <div className="mt-12 grid gap-5 lg:grid-cols-3">
-            {tiers.map((tier) => (
-              <article
-                key={tier.name}
-                className="relative rounded-2xl border p-6"
-                style={
-                  tier.popular
-                    ? {
-                        borderColor: C.primary,
-                        backgroundColor: C.bg,
-                        boxShadow: '0 4px 24px rgba(198,40,40,0.1)',
-                      }
-                    : { borderColor: C.border, backgroundColor: C.bg }
-                }
-              >
-                {tier.popular && (
-                  <span
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full border px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                    style={{ borderColor: C.primary, backgroundColor: C.bg, color: C.primary }}
-                  >
-                    {t('home.popular')}
-                  </span>
-                )}
-                <p className="font-cyber text-sm font-bold uppercase tracking-wider" style={{ color: tier.accent }}>
-                  {tier.name}
-                </p>
-                <p className="font-cyber mt-4 text-3xl font-bold" style={{ color: C.text }}>
-                  {tier.price}
-                  {tier.price !== t('home.tierFortressPrice') && (
-                    <span className="text-sm font-normal" style={{ color: C.textMuted }}>
-                      {t('home.perMonth')}
-                    </span>
-                  )}
-                </p>
-                <p className="mt-4 text-sm leading-relaxed" style={{ color: C.textMuted }}>
-                  {tier.desc}
-                </p>
-              </article>
-            ))}
-          </div>
-          <p className="mt-8 text-center text-xs" style={{ color: C.textMuted }}>
-            {t('home.pricingFootnote')}
-          </p>
-        </div>
-      </section>
+      <PricingSection
+        eyebrow={t('home.ctaApiPurchase')}
+        title={t('home.sectionPricing')}
+        subtitle={t('home.pricingSubtitle')}
+        footnote={t('home.pricingFootnote')}
+      />
 
       <FaqSection
         eyebrow={t('home.faqEyebrow')}

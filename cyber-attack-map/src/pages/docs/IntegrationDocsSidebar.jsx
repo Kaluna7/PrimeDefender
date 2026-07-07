@@ -27,70 +27,74 @@ export function IntegrationDocsSidebar({ doc, stack, onStackChange, onNavigate, 
   const closeNav = () => onNavigate?.();
 
   return (
-    <nav className={`flex h-full flex-col ${className}`} aria-label={doc.title}>
-      <a href="/" className="mb-8 flex items-center gap-2.5">
-        <img
-          src={siteIcon}
-          alt=""
-          width={36}
-          height={36}
-          className="h-9 w-9 shrink-0 rounded-lg object-cover"
-          aria-hidden
-        />
-        <span className="font-cyber text-sm font-bold uppercase tracking-[0.12em] text-slark-primary sm:text-base">
-          {t('brand.name')}
-        </span>
-      </a>
+    <nav className={`flex h-full min-h-0 flex-col ${className}`} aria-label={doc.title}>
+      <div className="shrink-0">
+        <a href="/" className="mb-8 flex items-center gap-2.5">
+          <img
+            src={siteIcon}
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 rounded-lg object-cover"
+            aria-hidden
+          />
+          <span className="font-cyber text-sm font-bold uppercase tracking-[0.12em] text-slark-primary sm:text-base">
+            {t('brand.name')}
+          </span>
+        </a>
 
-      <p className="text-xs font-semibold uppercase tracking-wider text-slark-muted">
-        {doc.stackPickerLabel}
-      </p>
-      <ul className="mt-2 space-y-1">
-        {INTEGRATION_STACKS.map((key) => {
-          const active = stack === key;
-          return (
-            <li key={key}>
-              <a
-                href="#step-middleware"
-                onClick={() => {
-                  onStackChange(key);
-                  closeNav();
-                }}
-                className={`${stackLink} ${active ? stackLinkActive : stackLinkIdle}`}
-                aria-current={active ? 'true' : undefined}
-              >
-                {doc.stacks[key].label}
+        <p className="text-xs font-semibold uppercase tracking-wider text-slark-muted">
+          {doc.stackPickerLabel}
+        </p>
+        <ul className="mt-2 space-y-1">
+          {INTEGRATION_STACKS.map((key) => {
+            const active = stack === key;
+            return (
+              <li key={key}>
+                <a
+                  href={`#${key === 'javascript' ? 'step-js-package' : 'step-middleware'}`}
+                  onClick={() => {
+                    onStackChange(key);
+                    closeNav();
+                  }}
+                  className={`${stackLink} ${active ? stackLinkActive : stackLinkIdle}`}
+                  aria-current={active ? 'true' : undefined}
+                >
+                  {doc.stacks[key].label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="thin-scrollbar mt-8 border-t border-slark-border pt-6 dark:border-slark-border/50 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-1">
+        <ul className="space-y-1">
+          {navItems.map((item) => (
+            <li key={item.id}>
+              <a href={`#${item.id}`} className={sectionLink} onClick={closeNav}>
+                {item.label}
               </a>
+              {item.children.length > 0 ? (
+                <ul className="ml-2 mt-0.5 space-y-0.5 border-l border-slark-border pl-2 dark:border-slark-border/50">
+                  {item.children.map((child) => (
+                    <li key={child.id}>
+                      <a href={`#${child.id}`} className={childLink} onClick={closeNav}>
+                        {child.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
-          );
-        })}
-      </ul>
-
-      <ul className="mt-8 space-y-1 border-t border-slark-border pt-6 dark:border-slark-border/50">
-        {navItems.map((item) => (
-          <li key={item.id}>
-            <a href={`#${item.id}`} className={sectionLink} onClick={closeNav}>
-              {item.label}
-            </a>
-            {item.children.length > 0 ? (
-              <ul className="ml-2 mt-0.5 space-y-0.5 border-l border-slark-border pl-2 dark:border-slark-border/50">
-                {item.children.map((child) => (
-                  <li key={child.id}>
-                    <a href={`#${child.id}`} className={childLink} onClick={closeNav}>
-                      {child.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+          ))}
+        </ul>
+      </div>
 
       <a
         href="/"
         onClick={closeNav}
-        className="mt-8 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slark-muted transition hover:text-slark-primary lg:mt-auto lg:pt-8"
+        className="mt-6 inline-flex shrink-0 items-center gap-1.5 pt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slark-muted transition hover:text-slark-primary"
       >
         <span aria-hidden>←</span>
         {t('settings.backDashboard')}

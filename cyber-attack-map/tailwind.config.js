@@ -32,10 +32,15 @@ export default {
           '0%, 100%': { opacity: '0.45' },
           '50%': { opacity: '0.9' },
         },
+        'landing-cta-glow': {
+          '0%, 100%': { opacity: '0.25', transform: 'scale(1)' },
+          '50%': { opacity: '0.55', transform: 'scale(1.06)' },
+        },
       },
       animation: {
         'home-intro-in': 'home-intro-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'home-glow-pulse': 'home-glow-pulse 2.8s ease-in-out infinite',
+        'landing-cta-glow': 'landing-cta-glow 5s ease-in-out infinite',
       },
     },
   },

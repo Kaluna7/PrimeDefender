@@ -1,2 +1,24 @@
+# Dependencies
 node_modules/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# API keys & local data
 data/api-keys.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

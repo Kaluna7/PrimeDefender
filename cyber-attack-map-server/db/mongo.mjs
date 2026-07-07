@@ -13,7 +13,7 @@ let collection = null;
 let connectPromise = null;
 let indexesEnsured = false;
 
-export function mongoDisabled() {
+export function mongoDisabled() { 
   return process.env.MONGODB_DISABLED === 'true' || URI === '';
 }
 
