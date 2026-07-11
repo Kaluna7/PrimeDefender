@@ -13,6 +13,8 @@ import {
   findRecentByOwnerUserId,
   insertIncident,
   mongoDisabled,
+  pingMongo,
+  logMongoTarget,
 } from './db/mongo.mjs';
 import {
   authConfigured,
@@ -28,6 +30,7 @@ import {
   startGoogleOAuth,
   verifyChallenge,
 } from './auth/auth.mjs';
+import { verifySmtpConnection } from './auth/smtp.mjs';
 import {
   confirmOrderPayment,
   createCoreChargeTransaction,
@@ -45,7 +48,7 @@ import {
   startPasswordChangeChallenge,
   verifyPasswordChangeCode,
 } from './auth/passwordChange.mjs';
-import { aiConfigured, runAiChat, runDailyCommentary } from './ai/deepseek.mjs';
+import { aiConfigured, runAiChat, runDailyCommentary } from './ai/fireworks.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() || '';
@@ -53,8 +56,44 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET?.trim() || '';
 const INGEST_ENABLED = process.env.INGEST_ENABLED === 'true';
 const BRIDGE_VERSION = 2;
 const MAX_BODY = 512 * 1024;
-const FRONTEND_URL = process.env.FRONTEND_URL?.trim() || 'http://localhost:5173';
+
+function normalizeOrigin(url) {
+  if (!url || typeof url !== 'string') return '';
+  let value = url.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '');
+  if (value && !/^https?:\/\//i.test(value)) {
+    value = `https://${value}`;
+  }
+  return value;
+}
+
+const FRONTEND_URL = normalizeOrigin(process.env.FRONTEND_URL) || 'http://localhost:5173';
 const AUTH_COOKIE_SECURE = process.env.AUTH_COOKIE_SECURE === 'true';
+
+function buildCorsAllowedOrigins() {
+  const origins = new Set([
+    FRONTEND_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+  const extra = normalizeOrigin(process.env.CORS_EXTRA_ORIGINS || '');
+  if (extra) {
+    for (const part of extra.split(',')) {
+      const o = normalizeOrigin(part);
+      if (o) origins.add(o);
+    }
+  }
+  return origins;
+}
+
+const CORS_ALLOWED_ORIGINS = buildCorsAllowedOrigins();
+const VERCEL_ORIGIN_RE = /^https:\/\/[\w.-]+\.vercel\.app$/;
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return false;
+  if (CORS_ALLOWED_ORIGINS.has(origin)) return true;
+  if (VERCEL_ORIGIN_RE.test(origin)) return true;
+  return false;
+}
 
 function pathname(url) {
   if (!url) return '/';
@@ -72,12 +111,8 @@ function sendJson(res, status, obj) {
 }
 
 function applyCors(req, res) {
-  const origin = req.headers.origin;
-  const allowed =
-    origin === FRONTEND_URL ||
-    origin === 'http://localhost:5173' ||
-    origin === 'http://127.0.0.1:5173';
-  if (allowed && origin) {
+  const origin = normalizeOrigin(req.headers.origin);
+  if (isAllowedCorsOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   } else {
@@ -951,7 +986,17 @@ const httpServer = createServer(async (req, res) => {
 });
 
 const io = new Server(httpServer, {
-  cors: { origin: '*' },
+  cors: {
+    origin: (origin, callback) => {
+      const normalized = normalizeOrigin(origin);
+      if (!normalized || isAllowedCorsOrigin(normalized)) {
+        callback(null, normalized || true);
+        return;
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  },
 });
 
 io.on('connection', async (socket) => {
@@ -970,13 +1015,39 @@ io.on('connection', async (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`[bridge v${BRIDGE_VERSION}] ingest: ${INGEST_ENABLED ? 'ON' : 'OFF (set INGEST_ENABLED=true)'}`);
+  console.log(`[cors] frontend: ${FRONTEND_URL}`);
+  console.log(`[cors] also allows https://*.vercel.app`);
   console.log(`HTTP  GET  http://localhost:${PORT}/health`);
   console.log(`HTTP  POST http://localhost:${PORT}/ingest  (X-Api-Key or INGEST_TOKEN)`);
   console.log(`ADMIN      http://localhost:${PORT}/admin/api-keys  (X-Admin-Secret)`);
   if (ADMIN_SECRET) console.log('Admin: key management enabled');
   else console.log('Admin: set ADMIN_SECRET to create API keys');
   console.log(`Socket.io  http://localhost:${PORT}`);
+  if (smtpConfigured()) {
+    verifySmtpConnection()
+      .then((result) => {
+        if (result.ok) {
+          console.log(`[smtp] ready on port ${result.port} (secure=${result.secure})`);
+        } else {
+          console.warn('[smtp] verify failed:', result.error);
+        }
+      })
+      .catch((e) => console.warn('[smtp] verify error:', e?.message || e));
+  } else {
+    console.warn('[smtp] not configured — set SMTP_* variables on Railway');
+  }
   if (!mongoDisabled()) {
+    logMongoTarget();
+    pingMongo()
+      .then((ok) => {
+        if (ok) console.log('[mongo] connected');
+        else {
+          console.warn(
+            '[mongo] not connected — check Atlas Network Access (0.0.0.0/0), user password, and MONGODB_URI (no quotes)'
+          );
+        }
+      })
+      .catch((e) => console.warn('[mongo] ping error:', e?.message || e));
     migrateLegacyVerifiedUsers()
       .then(() => console.log('[auth] legacy users marked email-verified'))
       .catch((e) => console.warn('[auth] legacy user migration skipped:', e?.message || e));

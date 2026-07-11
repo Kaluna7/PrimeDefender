@@ -1,21 +1,6 @@
-import nodemailer from 'nodemailer';
-import { getAuthConfig, smtpConfigured } from '../auth/auth.mjs';
+import { smtpConfigured } from '../auth/auth.mjs';
+import { sendSmtpEmail } from '../auth/smtp.mjs';
 import { getPlan } from './plans.mjs';
-
-/** @type {import('nodemailer').Transporter | null} */
-let smtpTransporter = null;
-
-function getSmtpTransporter(cfg) {
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort,
-      secure: cfg.smtpSecure,
-      auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
-    });
-  }
-  return smtpTransporter;
-}
 
 function formatIdr(amount) {
   return new Intl.NumberFormat('id-ID', {
@@ -37,7 +22,6 @@ function formatDate(ts) {
  * @param {{ toEmail: string, toName?: string, planId: string, orderId: string, amount: number, expiresAt: number }} input
  */
 export async function sendPaymentSuccessEmail(input) {
-  const cfg = getAuthConfig();
   if (!smtpConfigured()) {
     return { ok: false, error: 'smtp_not_configured' };
   }
@@ -65,16 +49,10 @@ export async function sendPaymentSuccessEmail(input) {
     </div>
   `.trim();
 
-  try {
-    await getSmtpTransporter(cfg).sendMail({
-      from: `"${cfg.smtpSenderName}" <${cfg.smtpSenderEmail}>`,
-      to: toName !== input.toEmail ? `"${toName}" <${input.toEmail}>` : input.toEmail,
-      subject: 'Slark — payment successful / pembayaran berhasil',
-      html,
-    });
-    return { ok: true };
-  } catch (e) {
-    console.error('[payment] smtp send failed', e?.message || e);
-    return { ok: false, error: 'email_send_failed' };
-  }
+  return sendSmtpEmail({
+    toEmail: input.toEmail,
+    toName,
+    subject: 'Slark — payment successful / pembayaran berhasil',
+    html,
+  });
 }

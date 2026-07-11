@@ -1,8 +1,19 @@
 import { MongoClient } from 'mongodb';
 
-const URI = (process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017').trim();
-const DB_NAME = (process.env.MONGODB_DB || 'slark').trim();
-const COLLECTION = (process.env.MONGODB_COLLECTION || 'incidents').trim();
+function stripEnv(value) {
+  if (!value || typeof value !== 'string') return '';
+  return value.trim().replace(/^["']|["']$/g, '');
+}
+
+const URI = stripEnv(process.env.MONGODB_URI) || 'mongodb://127.0.0.1:27017';
+const DB_NAME = stripEnv(process.env.MONGODB_DB) || 'slark';
+const COLLECTION = stripEnv(process.env.MONGODB_COLLECTION) || 'incidents';
+
+const MONGO_OPTIONS = {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 10_000,
+  connectTimeoutMS: 10_000,
+};
 
 /** @type {MongoClient | null} */
 let client = null;
@@ -13,8 +24,18 @@ let collection = null;
 let connectPromise = null;
 let indexesEnsured = false;
 
-export function mongoDisabled() { 
-  return process.env.MONGODB_DISABLED === 'true' || URI === '';
+export function mongoDisabled() {
+  const disabled = stripEnv(process.env.MONGODB_DISABLED);
+  return disabled === 'true' || URI === '' || URI === 'mongodb://127.0.0.1:27017';
+}
+
+export function logMongoTarget() {
+  try {
+    const host = URI.includes('@') ? URI.split('@')[1]?.split('/')[0] : URI;
+    console.log(`[mongo] target: ${host || '(unset)'}`);
+  } catch {
+    console.log('[mongo] target: (invalid URI)');
+  }
 }
 
 async function ensureIndexes(coll) {
@@ -30,7 +51,7 @@ export async function getCollection() {
   if (mongoDisabled()) return null;
   if (collection) return collection;
   if (!connectPromise) {
-    connectPromise = MongoClient.connect(URI, { maxPoolSize: 10 })
+    connectPromise = MongoClient.connect(URI, MONGO_OPTIONS)
       .then((c) => {
         client = c;
         db = client.db(DB_NAME);
@@ -41,8 +62,12 @@ export async function getCollection() {
         connectPromise = null;
         collection = null;
         db = null;
+        if (client) {
+          client.close().catch(() => {});
+        }
         client = null;
-        throw e;
+        console.error('[mongo] connect failed:', e?.message || e);
+        return null;
       });
   }
   return connectPromise;
@@ -51,9 +76,23 @@ export async function getCollection() {
 /** @param {string} name */
 export async function getNamedCollection(name) {
   if (mongoDisabled()) return null;
-  await getCollection();
-  if (!db) return null;
+  const ready = await getCollection();
+  if (!ready || !db) return null;
   return db.collection(name);
+}
+
+/** @returns {Promise<boolean>} */
+export async function pingMongo() {
+  if (mongoDisabled()) return false;
+  try {
+    const coll = await getCollection();
+    if (!coll) return false;
+    await coll.db.admin().ping();
+    return true;
+  } catch (e) {
+    console.error('[mongo] ping failed:', e?.message || e);
+    return false;
+  }
 }
 
 /**

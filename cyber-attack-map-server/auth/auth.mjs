@@ -1,8 +1,10 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import nodemailer from 'nodemailer';
 import { isUserEmailVerified, markEmailVerified, upsertUserByEmail, createPasswordUser, findUserAuthByEmail, updateUserPasswordHash } from '../db/usersMongo.mjs';
 import { mongoDisabled } from '../db/mongo.mjs';
+import { getSmtpConfig, sendSmtpEmail, smtpConfigured } from './smtp.mjs';
+
+export { smtpConfigured } from './smtp.mjs';
 
 const scryptAsync = promisify(scrypt);
 const PASSWORD_MIN_LEN = 8;
@@ -27,9 +29,6 @@ const sessions = new Map();
 /** @type {Map<string, number>} */
 const oauthStates = new Map();
 
-/** @type {import('nodemailer').Transporter | null} */
-let smtpTransporter = null;
-
 function pruneMap(map) {
   const now = Date.now();
   for (const [k, v] of map) {
@@ -43,41 +42,19 @@ export function getAuthConfig() {
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() || '',
     callbackUrl:
       process.env.GOOGLE_CALLBACK_URL?.trim() || 'http://localhost:3000/auth/google/callback',
-    frontendUrl: process.env.FRONTEND_URL?.trim() || 'http://localhost:5173',
+    frontendUrl: (() => {
+      let url = process.env.FRONTEND_URL?.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '') || '';
+      if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+      return url || 'http://localhost:5173';
+    })(),
     sessionSecret: process.env.AUTH_SESSION_SECRET?.trim() || 'slark-dev-session-secret',
-    smtpHost: process.env.SMTP_HOST?.trim() || 'smtp.hostinger.com',
-    smtpPort: Number(process.env.SMTP_PORT) > 0 ? Number(process.env.SMTP_PORT) : 465,
-    smtpSecure: process.env.SMTP_SECURE !== 'false',
-    smtpUser: process.env.SMTP_USER?.trim() || '',
-    smtpPass: process.env.SMTP_PASS?.trim() || '',
-    smtpSenderEmail: process.env.SMTP_SENDER_EMAIL?.trim() || process.env.SMTP_USER?.trim() || '',
-    smtpSenderName: process.env.SMTP_SENDER_NAME?.trim() || 'Slark',
+    ...getSmtpConfig(),
   };
-}
-
-export function smtpConfigured() {
-  const c = getAuthConfig();
-  return Boolean(c.smtpHost && c.smtpUser && c.smtpPass && c.smtpSenderEmail);
 }
 
 export function authConfigured() {
   const c = getAuthConfig();
   return Boolean(c.googleClientId && c.googleClientSecret && smtpConfigured());
-}
-
-function getSmtpTransporter(cfg) {
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort,
-      secure: cfg.smtpSecure,
-      auth: {
-        user: cfg.smtpUser,
-        pass: cfg.smtpPass,
-      },
-    });
-  }
-  return smtpTransporter;
 }
 
 function randomId(bytes = 24) {
@@ -215,10 +192,6 @@ async function exchangeGoogleCode(code) {
 }
 
 export async function sendVerificationEmail({ toEmail, toName, code }) {
-  const cfg = getAuthConfig();
-  if (!smtpConfigured()) {
-    return { ok: false, error: 'smtp_not_configured' };
-  }
   const html = `
     <div style="font-family:system-ui,sans-serif;background:#0F172A;color:#F8FAFC;padding:24px">
       <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Slark</h1>
@@ -229,19 +202,12 @@ export async function sendVerificationEmail({ toEmail, toName, code }) {
     </div>
   `.trim();
 
-  try {
-    const transporter = getSmtpTransporter(cfg);
-    await transporter.sendMail({
-      from: `"${cfg.smtpSenderName}" <${cfg.smtpSenderEmail}>`,
-      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
-      subject: 'Slark — your verification code',
-      html,
-    });
-    return { ok: true };
-  } catch (e) {
-    console.error('[auth] smtp send failed', e?.message || e);
-    return { ok: false, error: 'email_send_failed' };
-  }
+  return sendSmtpEmail({
+    toEmail,
+    toName,
+    subject: 'Slark — your verification code',
+    html,
+  });
 }
 
 async function accountAlreadyVerified(email) {
@@ -296,31 +262,16 @@ export async function handleGoogleCallback({ code, state }) {
     return { ok: false, error: 'google_exchange_failed' };
   }
 
-  if (await accountAlreadyVerified(profile.email)) {
-    const login = await createLoginSession(profile);
-    return {
-      ok: true,
-      directLogin: true,
-      sessionToken: login.sessionToken,
-      user: login.user,
-    };
-  }
+  // Google already verified the email — skip OTP challenge.
+  verifiedEmailsMemory.add(profile.email);
+  await markEmailVerified(profile.email);
 
-  const challenge = await startEmailVerificationChallenge({
-    email: profile.email,
-    name: profile.name,
-    picture: profile.picture,
-  });
-  if (!challenge.ok) {
-    return { ok: false, error: challenge.error };
-  }
-
+  const login = await createLoginSession(profile);
   return {
     ok: true,
-    directLogin: false,
-    challengeId: challenge.challengeId,
-    email: challenge.email,
-    name: profile.name,
+    directLogin: true,
+    sessionToken: login.sessionToken,
+    user: login.user,
   };
 }
 

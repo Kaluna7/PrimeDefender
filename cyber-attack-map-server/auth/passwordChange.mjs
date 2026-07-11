@@ -1,15 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import nodemailer from 'nodemailer';
-import { getAuthConfig, smtpConfigured, updatePasswordForUser } from './auth.mjs';
+import { smtpConfigured, updatePasswordForUser } from './auth.mjs';
+import { sendSmtpEmail } from './smtp.mjs';
 import { getUserByEmail } from '../db/usersMongo.mjs';
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 
 /** @type {Map<string, { email: string, codeHash: string, codeVerified: boolean, expiresAt: number }>} */
 const challenges = new Map();
-
-/** @type {import('nodemailer').Transporter | null} */
-let smtpTransporter = null;
 
 function randomId(bytes = 18) {
   return randomBytes(bytes).toString('base64url');
@@ -30,27 +27,7 @@ function pruneChallenges() {
   }
 }
 
-function getSmtpTransporter(cfg) {
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort,
-      secure: cfg.smtpSecure,
-      auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
-    });
-  }
-  return smtpTransporter;
-}
-
-function maskEmail(email) {
-  const [local, domain] = String(email).split('@');
-  if (!local || !domain) return email;
-  const visible = local.slice(0, Math.min(2, local.length));
-  return `${visible}${'•'.repeat(Math.max(1, local.length - visible.length))}@${domain}`;
-}
-
 async function sendPasswordChangeCodeEmail({ toEmail, toName, code }) {
-  const cfg = getAuthConfig();
   if (!smtpConfigured()) {
     return { ok: false, error: 'smtp_not_configured' };
   }
@@ -65,18 +42,19 @@ async function sendPasswordChangeCodeEmail({ toEmail, toName, code }) {
     </div>
   `.trim();
 
-  try {
-    await getSmtpTransporter(cfg).sendMail({
-      from: `"${cfg.smtpSenderName}" <${cfg.smtpSenderEmail}>`,
-      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
-      subject: 'Slark — password change verification',
-      html,
-    });
-    return { ok: true };
-  } catch (e) {
-    console.error('[password-change] smtp send failed', e?.message || e);
-    return { ok: false, error: 'email_send_failed' };
-  }
+  return sendSmtpEmail({
+    toEmail,
+    toName,
+    subject: 'Slark — password change verification',
+    html,
+  });
+}
+
+function maskEmail(email) {
+  const [local, domain] = String(email).split('@');
+  if (!local || !domain) return email;
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}${'•'.repeat(Math.max(1, local.length - visible.length))}@${domain}`;
 }
 
 /**

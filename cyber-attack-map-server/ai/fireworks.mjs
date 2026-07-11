@@ -18,23 +18,28 @@ const COMMENTARY_SYSTEM_INSTRUCTION = `You are a SOC analyst writing brief daily
 Use only the incident counts and categories provided. Do not invent IPs, attack names, or tools.
 Each comment must be 1–2 short sentences, practical and calm.`;
 
+const DEFAULT_MODEL = 'accounts/fireworks/models/deepseek-v4-pro';
+const DEFAULT_BASE_URL = 'https://api.fireworks.ai/inference/v1';
+
 export function aiConfigured() {
-  const k = process.env.DEEPSEEK_API_KEY;
+  const k = process.env.FIREWORKS_API_KEY;
   return typeof k === 'string' && k.trim().length > 0;
 }
 
-export function getDeepSeekModelName() {
-  const m = process.env.DEEPSEEK_MODEL;
-  return typeof m === 'string' && m.trim() ? m.trim() : 'deepseek-chat';
+export function getFireworksModelName() {
+  const m = process.env.FIREWORKS_MODEL;
+  return typeof m === 'string' && m.trim() ? m.trim() : DEFAULT_MODEL;
 }
 
-function getDeepSeekBaseUrl() {
-  const base = process.env.DEEPSEEK_BASE_URL;
-  return typeof base === 'string' && base.trim() ? base.trim().replace(/\/$/, '') : 'https://api.deepseek.com';
+function getFireworksBaseUrl() {
+  const base = process.env.FIREWORKS_BASE_URL;
+  return typeof base === 'string' && base.trim()
+    ? base.trim().replace(/\/$/, '')
+    : DEFAULT_BASE_URL;
 }
 
 function requireApiKey() {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const apiKey = process.env.FIREWORKS_API_KEY?.trim();
   if (!apiKey) {
     const err = new Error('ai_not_configured');
     err.code = 'ai_not_configured';
@@ -44,7 +49,7 @@ function requireApiKey() {
 }
 
 /** @param {unknown} err */
-export function mapDeepSeekError(err) {
+export function mapFireworksError(err) {
   const msg = err instanceof Error ? err.message : String(err);
   if (/429|Too Many Requests|quota|rate limit|insufficient balance/i.test(msg)) {
     const mapped = new Error('ai_rate_limited');
@@ -66,12 +71,12 @@ export function mapDeepSeekError(err) {
   return mapped;
 }
 
-async function withDeepSeekError(fn) {
+async function withFireworksError(fn) {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof Error && err.code) throw err;
-    throw mapDeepSeekError(err);
+    throw mapFireworksError(err);
   }
 }
 
@@ -115,16 +120,17 @@ function parseJsonPayload(text) {
  * @param {{ systemInstruction: string; messages: { role: string; content: string }[] }} input
  * @returns {Promise<string>}
  */
-async function deepseekCompletion({ systemInstruction, messages }) {
+async function fireworksCompletion({ systemInstruction, messages }) {
   const apiKey = requireApiKey();
-  const res = await fetch(`${getDeepSeekBaseUrl()}/v1/chat/completions`, {
+  // FIREWORKS_BASE_URL already includes /v1 (OpenAI-compatible).
+  const res = await fetch(`${getFireworksBaseUrl()}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: getDeepSeekModelName(),
+      model: getFireworksModelName(),
       messages: [{ role: 'system', content: systemInstruction }, ...toOpenAiMessages(messages)],
       temperature: 0.7,
     }),
@@ -137,7 +143,7 @@ async function deepseekCompletion({ systemInstruction, messages }) {
         ? data.error.message
         : typeof data?.message === 'string'
           ? data.message
-          : `DeepSeek API error ${res.status}`;
+          : `Fireworks API error ${res.status}`;
     throw new Error(`${res.status} ${detail}`);
   }
 
@@ -194,8 +200,8 @@ export async function runAiChat({ variant = 'threat', messages, locale = 'en' })
     throw err;
   }
 
-  const reply = await withDeepSeekError(() =>
-    deepseekCompletion({
+  const reply = await withFireworksError(() =>
+    fireworksCompletion({
       systemInstruction: systemForVariant(variant, locale),
       messages,
     }),
@@ -212,8 +218,8 @@ export async function runDailyCommentary({ dailyPoints, locale = 'en' }) {
     return { comments: [] };
   }
 
-  const text = await withDeepSeekError(() =>
-    deepseekCompletion({
+  const text = await withFireworksError(() =>
+    fireworksCompletion({
       systemInstruction: COMMENTARY_SYSTEM_INSTRUCTION,
       messages: [{ role: 'user', content: buildCommentaryPrompt(dailyPoints, locale) }],
     }),
