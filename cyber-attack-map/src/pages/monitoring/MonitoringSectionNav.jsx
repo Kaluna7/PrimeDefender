@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, History, Home } from 'lucide-react';
+import { ChevronLeft, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ProfileMenu } from '../../components/layout/ProfileMenu.jsx';
 
@@ -9,7 +9,6 @@ export const MONITORING_TAB = {
   HISTORY: 'history',
   ATTACKER: 'attacker',
   INTEL: 'intel',
-  ASSISTANT: 'assistant',
 };
 
 const MONITORING_NAV_ITEMS = [
@@ -39,13 +38,6 @@ const MONITORING_NAV_ITEMS = [
     labelKey: 'navIntel',
     icon: (
       <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
-    ),
-  },
-  {
-    id: MONITORING_TAB.ASSISTANT,
-    labelKey: 'navAssistant',
-    icon: (
-      <path d="M12 2a7 7 0 0 1 6.99 7.5c0 3.04-1.94 5.64-4.64 6.62L14 21h-4l-.35-1.88C6.95 18.14 5 15.54 5 12.5 5 8.36 8.36 5 12.5 5c.17 0 .34.01.5.02A7 7 0 0 1 12 2zm0 2c-2.76 0-5 2.24-5 5 0 2.32 1.58 4.27 3.71 4.84l.29.08.45 2.41h1.1l.45-2.41.29-.08C15.42 13.27 17 11.32 17 9c0-2.76-2.24-5-5-5zm-1 4h2v2h-2V8zm0 3h2v2h-2v-2z" />
     ),
   },
 ];
@@ -180,8 +172,6 @@ function MonitoringDashboardLink({ label, onNavigate, variant = 'rail' }) {
  *   activeTab: string;
  *   onSelectTab: (id: string) => void;
  *   bridgeBannerVisible?: boolean;
- *   onAssistantHistory?: () => void;
- *   assistantHistoryOpen?: boolean;
  * }} props
  */
 export function MonitoringSectionNav({
@@ -189,8 +179,6 @@ export function MonitoringSectionNav({
   activeTab,
   onSelectTab,
   bridgeBannerVisible,
-  onAssistantHistory,
-  assistantHistoryOpen = false,
 }) {
   const navRef = useRef(/** @type {HTMLElement | null} */ (null));
   const [menuOpen, setMenuOpen] = useState(false);
@@ -280,18 +268,6 @@ export function MonitoringSectionNav({
           <h1 className="min-w-0 flex-1 truncate font-cyber text-xs font-bold uppercase tracking-[0.12em] text-slate-100">
             {activeLabel}
           </h1>
-
-          {activeTab === MONITORING_TAB.ASSISTANT && onAssistantHistory ? (
-            <button
-              type="button"
-              onClick={onAssistantHistory}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-600/50 bg-white/[0.04] text-slate-300 transition hover:border-slark-primary/40 hover:text-slark-primary"
-              aria-label={t('aiChat.historyButton')}
-              aria-expanded={assistantHistoryOpen}
-            >
-              <History className="h-4 w-4" strokeWidth={2} aria-hidden />
-            </button>
-          ) : null}
         </div>
       </header>
 

@@ -7,7 +7,7 @@ async function usersColl() {
 }
 
 /**
- * Buat API key untuk user jika belum ada (setelah langganan aktif).
+ * Buat API key untuk user jika belum ada.
  * @param {string} email
  */
 export async function ensureUserApiKey(email) {
@@ -70,7 +70,7 @@ export async function getUserApiKeyPlain(email) {
 }
 
 /**
- * Ganti API key user dengan yang baru (langganan harus aktif).
+ * Ganti API key user dengan yang baru.
  * @param {string} email
  */
 export async function regenerateUserApiKey(email) {
@@ -81,10 +81,6 @@ export async function regenerateUserApiKey(email) {
   if (!doc) return null;
 
   const now = Date.now();
-  const sub = doc.subscription;
-  const active = sub?.expiresAt > now && (!sub.status || sub.status === 'active');
-  if (!active) return null;
-
   const apiKey = `pd_${randomBytes(24).toString('base64url')}`;
   const hash = hashApiKey(apiKey);
   const prefix = `${apiKey.slice(0, 12)}…`;
@@ -112,7 +108,7 @@ export async function verifyUserIngestApiKey(plainKey) {
 }
 
 /**
- * Pemilik insiden untuk POST /ingest (API key user + langganan aktif).
+ * Pemilik insiden untuk POST /ingest berdasarkan API key user.
  * @param {string} plainKey
  * @returns {Promise<{ id: string, email: string } | null>}
  */
@@ -121,13 +117,7 @@ export async function resolveUserByIngestApiKey(plainKey) {
   const coll = await usersColl();
   if (!coll) return null;
   const h = hashApiKey(plainKey);
-  const now = Date.now();
-  const doc = await coll.findOne({
-    'apiKey.hash': h,
-    'subscription.expiresAt': { $gt: now },
-  });
+  const doc = await coll.findOne({ 'apiKey.hash': h });
   if (!doc) return null;
-  const sub = doc.subscription;
-  if (!sub || (sub.status && sub.status !== 'active')) return null;
   return { id: String(doc._id), email: doc.email };
 }

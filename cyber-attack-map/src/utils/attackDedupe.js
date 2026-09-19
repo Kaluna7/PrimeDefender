@@ -1,6 +1,6 @@
 /**
  * Groups repeated ingest/socket reports into one monitor row + one map arc.
- * Prefer stable `incidentId` from middleware; else site + attacker + path + category (geo not used for dedupe).
+ * Group by site + attacker + path + category + detection (geo not used for dedupe).
  */
 
 /**
@@ -11,16 +11,18 @@ export function fingerprintForEntry(entry) {
   if (typeof entry.id === 'string' && entry.id.startsWith('demo-')) {
     return `id:${entry.id}`;
   }
-  if (typeof entry.incidentId === 'string' && entry.incidentId.trim()) {
-    return `ik:${entry.incidentId.trim()}`;
-  }
-  const site = (entry.siteId || entry.tenantId || '').trim();
+  const site = (entry.siteId || '').trim();
   const ip = (entry.attackerIp || '').trim().toLowerCase();
   const path = (entry.path || '').slice(0, 256);
   const method = (entry.method || '').toUpperCase();
   const cat = entry.category || 'unknown';
+  // Keep different detection rules separate (e.g. bot_activity vs bad_ua).
+  const det = String(entry.detection || entry.detectType || '')
+    .toLowerCase()
+    .trim()
+    .slice(0, 96);
   if (site || ip) {
-    return `v:${site}|${ip}|${method}|${path}|${cat}`;
+    return `v:${site}|${ip}|${method}|${path}|${cat}|${det}`;
   }
   const f = entry.from;
   const t = entry.to;

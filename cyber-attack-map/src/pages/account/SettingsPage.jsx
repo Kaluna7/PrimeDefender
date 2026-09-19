@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  Check,
   CreditCard,
   Globe,
   LogOut,
@@ -10,7 +9,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useI18n } from '../../i18n/I18nContext.jsx';
-import { LanguageFlag } from '../../components/layout/LanguageFlag.jsx';
 import { ChangePasswordModal } from './ChangePasswordModal.jsx';
 import { fetchAuthStatus, getGoogleSignInUrl, signOut } from '../../services/auth.js';
 import {
@@ -23,11 +21,6 @@ const FEATURES = [
   { icon: ShieldCheck, titleKey: 'settings.featureSecurityTitle', bodyKey: 'settings.featureSecurityBody' },
   { icon: CreditCard, titleKey: 'settings.featurePlanTitle', bodyKey: 'settings.featurePlanBody' },
   { icon: Globe, titleKey: 'settings.featureMapTitle', bodyKey: 'settings.featureMapBody' },
-];
-
-const LANGUAGE_OPTIONS = [
-  { id: 'en', labelKey: 'profile.languageEnglish' },
-  { id: 'id', labelKey: 'profile.languageIndonesian' },
 ];
 
 function initialsFromUser(user) {
@@ -156,7 +149,7 @@ function SettingsSkeleton() {
 }
 
 export function SettingsPage() {
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(
@@ -171,23 +164,24 @@ export function SettingsPage() {
   const passwordErrorMessage = useCallback(
     (code) => {
       const map = {
-        invalid_code: t('settings.changePasswordInvalidCode'),
-        challenge_expired: t('settings.changePasswordExpired'),
-        challenge_mismatch: t('settings.changePasswordExpired'),
-        code_not_verified: t('settings.changePasswordExpired'),
-        smtp_not_configured: t('settings.changePasswordEmailFailed'),
-        email_send_failed: t('settings.changePasswordEmailFailed'),
-        password_mismatch: t('settings.changePasswordMismatch'),
-        password_too_short: t('settings.changePasswordTooShort'),
-        not_authenticated: t('settings.changePasswordNotSignedIn'),
-        endpoint_not_found: t('settings.changePasswordServerOutdated'),
-        send_failed: t('settings.changePasswordSendFailed'),
-        verify_failed: t('settings.changePasswordGeneric'),
-        complete_failed: t('settings.changePasswordGeneric'),
-        mongo_disabled: t('settings.changePasswordGeneric'),
-        user_not_found: t('settings.changePasswordGeneric'),
+        invalid_code: t('settings.forgetPasswordInvalidCode'),
+        challenge_expired: t('settings.forgetPasswordExpired'),
+        challenge_mismatch: t('settings.forgetPasswordExpired'),
+        code_not_verified: t('settings.forgetPasswordExpired'),
+        smtp_not_configured: t('settings.forgetPasswordEmailFailed'),
+        email_send_failed: t('settings.forgetPasswordEmailFailed'),
+        password_mismatch: t('settings.forgetPasswordMismatch'),
+        password_too_short: t('settings.forgetPasswordTooShort'),
+        not_authenticated: t('settings.forgetPasswordNotSignedIn'),
+        endpoint_not_found: t('settings.forgetPasswordServerOutdated'),
+        send_failed: t('settings.forgetPasswordSendFailed'),
+        verify_failed: t('settings.forgetPasswordGeneric'),
+        complete_failed: t('settings.forgetPasswordGeneric'),
+        mongo_disabled: t('settings.forgetPasswordGeneric'),
+        user_not_found: t('settings.forgetPasswordGeneric'),
+        network_error: t('settings.forgetPasswordSendFailed'),
       };
-      return map[code] || t('settings.changePasswordGeneric');
+      return map[code] || t('settings.forgetPasswordGeneric');
     },
     [t]
   );
@@ -200,7 +194,7 @@ export function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    document.title = `${t('brand.name')} – ${t('settings.title')}`;
+    document.title = `${t('brand.name')} | ${t('settings.title')}`;
   }, [t, locale]);
 
   useEffect(() => {
@@ -240,7 +234,7 @@ export function SettingsPage() {
     setPasswordSending(true);
     setPasswordError('');
     try {
-      const result = await requestPasswordChangeCode();
+      const result = await requestPasswordChangeCode({ purpose: 'reset' });
       if (!result.ok) {
         setPasswordError(passwordErrorMessage(result.error));
         return { ok: false };
@@ -253,29 +247,42 @@ export function SettingsPage() {
     }
   };
 
-  const handleVerifyPasswordCode = async (code) => {
+  const handleVerifyPasswordCode = async (code, challengeId) => {
     setPasswordError('');
-    const result = await verifyPasswordChangeCode({ challengeId: passwordChallengeId, code });
-    if (!result.ok) {
-      setPasswordError(passwordErrorMessage(result.error));
+    try {
+      const result = await verifyPasswordChangeCode({
+        challengeId: challengeId || passwordChallengeId,
+        code,
+      });
+      if (!result?.ok) {
+        setPasswordError(passwordErrorMessage(result?.error));
+        return { ok: false };
+      }
+      return { ok: true };
+    } catch {
+      setPasswordError(passwordErrorMessage('network_error'));
       return { ok: false };
     }
-    return { ok: true };
   };
 
-  const handleCompletePasswordChange = async ({ password, confirmPassword }) => {
+  const handleCompletePasswordChange = async ({ password, confirmPassword, challengeId }) => {
     setPasswordError('');
-    const result = await completePasswordChange({
-      challengeId: passwordChallengeId,
-      password,
-      confirmPassword,
-    });
-    if (!result.ok) {
-      setPasswordError(passwordErrorMessage(result.error));
+    try {
+      const result = await completePasswordChange({
+        challengeId: challengeId || passwordChallengeId,
+        password,
+        confirmPassword,
+      });
+      if (!result?.ok) {
+        setPasswordError(passwordErrorMessage(result?.error));
+        return { ok: false };
+      }
+      setUser((prev) => (prev ? { ...prev, hasPassword: true } : prev));
+      return { ok: true };
+    } catch {
+      setPasswordError(passwordErrorMessage('network_error'));
       return { ok: false };
     }
-    setUser((prev) => (prev ? { ...prev, hasPassword: true } : prev));
-    return { ok: true };
   };
 
   return (
@@ -370,10 +377,10 @@ export function SettingsPage() {
                           />
                           <div className="min-w-0">
                             <h3 className="text-[15px] font-semibold text-slark-text sm:text-base dark:text-white">
-                              {t('settings.changePasswordButton')}
+                              {t('settings.forgetPasswordButton')}
                             </h3>
                             <p className="mt-1.5 text-[13px] leading-relaxed text-slark-muted sm:text-sm">
-                              {t('settings.changePasswordCardHint')}
+                              {t('settings.forgetPasswordCardHint')}
                             </p>
                           </div>
                         </div>
@@ -383,66 +390,12 @@ export function SettingsPage() {
                           className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-slark-primary px-5 py-3.5 text-[15px] font-semibold text-white transition hover:bg-slark-primary-hover sm:w-auto sm:min-w-[10.5rem] sm:py-3 sm:text-sm"
                         >
                           <Lock className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-                          {t('settings.changePasswordButton')}
+                          {t('settings.forgetPasswordButton')}
                         </button>
                       </div>
                     </div>
                   </section>
                 )}
-
-                <section>
-                  <SectionLabel>{t('settings.languageSection')}</SectionLabel>
-                  <div className="mt-3 rounded-2xl border border-slark-border/70 bg-slark-card/80 p-4 shadow-sm backdrop-blur-sm dark:border-slark-border/40 dark:bg-slark-dark/75 sm:p-6 lg:p-7">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5 lg:items-center">
-                      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                        <Globe
-                          className="mt-0.5 h-4 w-4 shrink-0 text-slark-primary sm:mt-1 sm:h-5 sm:w-5"
-                          strokeWidth={2}
-                          aria-hidden
-                        />
-                        <div className="min-w-0">
-                          <h3 className="text-[15px] font-semibold text-slark-text sm:text-base dark:text-white">
-                            {t('profile.changeLanguage')}
-                          </h3>
-                          <p className="mt-1.5 text-[13px] leading-relaxed text-slark-muted sm:text-sm">
-                            {t('settings.languageCardHint')}
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[14rem] sm:grid-cols-1"
-                        role="radiogroup"
-                        aria-label={t('profile.changeLanguage')}
-                      >
-                        {LANGUAGE_OPTIONS.map(({ id, labelKey }) => {
-                          const selected = locale === id;
-                          return (
-                            <button
-                              key={id}
-                              type="button"
-                              role="radio"
-                              aria-checked={selected}
-                              onClick={() => setLocale(id)}
-                              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-3 text-[13px] font-medium transition sm:gap-3 sm:px-4 sm:py-3 sm:text-sm ${
-                                selected
-                                  ? 'border-slark-primary/40 bg-slark-primary/10 text-slark-primary dark:bg-slark-primary/20 dark:text-white'
-                                  : 'border-slark-border bg-slark-bg text-slark-text hover:border-slark-primary/30 dark:border-slark-border/50 dark:bg-slark-dark/60 dark:text-white'
-                              }`}
-                            >
-                              <LanguageFlag locale={id} className="shadow-none" />
-                              <span className="min-w-0 flex-1 text-left">{t(labelKey)}</span>
-                              {selected ? (
-                                <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} aria-hidden />
-                              ) : (
-                                <span className="h-4 w-4 shrink-0" aria-hidden />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </section>
 
                 {user && (
                   <div className="border-t border-slark-border/60 pt-8 text-center lg:hidden dark:border-white/10">
@@ -459,6 +412,7 @@ export function SettingsPage() {
 
       <ChangePasswordModal
         open={passwordModalOpen}
+        variant="forget"
         emailMasked={passwordEmailMasked}
         sending={passwordSending}
         error={passwordError}

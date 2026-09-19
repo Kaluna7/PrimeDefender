@@ -1,8 +1,14 @@
+import dns from 'node:dns';
 import nodemailer from 'nodemailer';
 
 function stripEnv(value) {
   if (!value || typeof value !== 'string') return '';
   return value.trim().replace(/^["']|["']$/g, '');
+}
+
+/** Force A-record (IPv4) lookups — Railway often has broken IPv6 egress. */
+function ipv4Lookup(hostname, _opts, cb) {
+  dns.lookup(hostname, { family: 4 }, cb);
 }
 
 function envBool(name, defaultValue = false) {
@@ -21,7 +27,7 @@ export function getSmtpConfig() {
     smtpUser: stripEnv(process.env.SMTP_USER),
     smtpPass: stripEnv(process.env.SMTP_PASS),
     smtpSenderEmail: stripEnv(process.env.SMTP_SENDER_EMAIL) || stripEnv(process.env.SMTP_USER),
-    smtpSenderName: stripEnv(process.env.SMTP_SENDER_NAME) || 'Slark',
+    smtpSenderName: stripEnv(process.env.SMTP_SENDER_NAME) || 'Jagra Baya Maya',
   };
 }
 
@@ -40,6 +46,7 @@ function transporterOptions(cfg) {
     port: cfg.smtpPort,
     secure: cfg.smtpSecure,
     family: 4,
+    lookup: ipv4Lookup,
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
     socketTimeout: 20_000,

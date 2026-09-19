@@ -1,16 +1,16 @@
 function dash(value) {
-  return value && String(value).trim() ? String(value).trim() : '—';
+  return value && String(value).trim() ? String(value).trim() : '-';
 }
 
 export function formatAttackConfidence(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—';
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '-';
 }
 
 export function buildAttackLogLines(attack) {
   const geo = attack.geoMeta || {};
   return [
     `timestamp: ${new Date(attack.createdAt).toISOString()}`,
-    `request_id: ${dash(attack.requestId || attack.incidentId || attack.id)}`,
+    `request_id: ${dash(attack.requestId || attack.id)}`,
     '',
     'attacker:',
     `  ip: ${dash(attack.attackerIp)}`,
@@ -29,7 +29,7 @@ export function buildAttackLogLines(attack) {
     `    x-forwarded-for: ${dash(attack.forwardedFor)}`,
     '',
     'target:',
-    `  service: ${dash(attack.targetService || attack.siteId || attack.tenantId || attack.targetLabel)}`,
+    `  service: ${dash(attack.targetService || attack.siteId || attack.targetLabel)}`,
     '',
     'auth:',
     `  status: ${dash(attack.authStatus)}`,
@@ -60,7 +60,7 @@ export function formatAttackLog(attack) {
 
 export function summarizeAttackLog(attack) {
   return {
-    requestId: dash(attack.requestId || attack.incidentId || attack.id),
+    requestId: dash(attack.requestId || attack.id),
     request: `${dash(attack.method)} ${dash(attack.path)}`,
     detectType: dash(attack.detectType || attack.detection),
     responseStatus: dash(attack.responseStatus),

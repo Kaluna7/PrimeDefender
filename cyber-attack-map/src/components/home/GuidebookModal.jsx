@@ -76,7 +76,7 @@ function BookCanvas({ bookPresentationOpen }) {
  * @param {import('./heroTheme.js').HERO_THEME_LIGHT} [props.theme]
  */
 export function GuidebookModal({ open, onClose, bookPresentationOpen = false, locale, t, theme }) {
-  const guide = integrationGuide[locale] ?? integrationGuide.en;
+  const guide = integrationGuide.id;
   const themeStyle = theme ? heroThemeCssVars(theme) : undefined;
   const [showBookPreview, setShowBookPreview] = useState(false);
 

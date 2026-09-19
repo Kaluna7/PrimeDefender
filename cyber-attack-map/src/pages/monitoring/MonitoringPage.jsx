@@ -3,11 +3,11 @@ import { useI18n } from '../../i18n/I18nContext.jsx';
 import { AttackMap } from '../../components/monitoring/AttackMap.jsx';
 import { ThreatMetricsPanel } from '../../components/monitoring/ThreatMetricsPanel.jsx';
 import { ProtectionThreatPanel } from '../../components/monitoring/ProtectionThreatPanel.jsx';
+import { MapTickerBanner } from '../../components/monitoring/MapTickerBanner.jsx';
 import { HistoryTabView } from './history/HistoryTabView.jsx';
 import { AttackerTabView } from './attacker/AttackerTabView.jsx';
 import { IntelTabView } from './intel/IntelTabView.jsx';
 import { IncidentDetailModal } from '../../components/monitoring/IncidentDetailModal.jsx';
-import { ThreatAIChatPanel } from '../../components/monitoring/ThreatAIChatPanel.jsx';
 import { connectAttackSocket } from '../../services/socket';
 import {
   fetchHistoryIncidents,
@@ -35,6 +35,12 @@ const DEMO_ATTACKS = import.meta.env.VITE_DEMO_ATTACKS === 'true';
 
 const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+function startOfLocalDay(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return start.getTime();
+}
+
 function getBridgeAdminSecret() {
   try {
     const env = import.meta.env.VITE_BRIDGE_ADMIN_SECRET;
@@ -49,7 +55,12 @@ function mergeIncidentLists(prev, incoming) {
   const map = new Map(prev.map((a) => [a.id, a]));
   for (const n of incoming) {
     const o = map.get(n.id);
-    if (!o || o.createdAt <= n.createdAt) map.set(n.id, n);
+    if (!o || o.createdAt <= n.createdAt) {
+      const hitCount = Math.max(o?.hitCount || 1, n.hitCount || 1);
+      map.set(n.id, { ...n, hitCount });
+    } else if (o && (n.hitCount || 1) > (o.hitCount || 1)) {
+      map.set(n.id, { ...o, hitCount: n.hitCount });
+    }
   }
   const arr = Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
   return arr.length > MAX_ATTACKS ? arr.slice(-MAX_ATTACKS) : arr;
@@ -74,13 +85,15 @@ function pushAttack(prev, payload) {
       to: old.to,
       createdAt: old.createdAt,
       lastSeenAt: Date.now(),
+      // Count every realtime hit so Perlindungan (sesi) stays live without reload.
+      hitCount: (old.hitCount || 1) + 1,
     };
     const next = [...prev];
     next[idx] = merged;
     return next;
   }
 
-  const next = [...prev, entry];
+  const next = [...prev, { ...entry, hitCount: entry.hitCount || 1 }];
   return next.length > MAX_ATTACKS ? next.slice(-MAX_ATTACKS) : next;
 }
 
@@ -124,26 +137,16 @@ export function MonitoringPage() {
   /** Popup detail when user clicks feed row or map arc/point */
   const [modalAttack, setModalAttack] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
-  const threatAiRef = useRef(null);
+  const [mapDayStart, setMapDayStart] = useState(() => startOfLocalDay());
   const ownerUserIdRef = useRef(/** @type {string | null} */ (null));
   const [activeTab, setActiveTab] = useState(MONITORING_TAB.MAP);
-  const [pendingExplainAttack, setPendingExplainAttack] = useState(
-    /** @type {Record<string, unknown> | null} */ (null),
-  );
-  const [assistantHistoryOpen, setAssistantHistoryOpen] = useState(false);
 
   const socketEnabled = !SOCKET_DISABLED;
   const bridgeState = useBridgeHandshake(socketEnabled);
 
   useEffect(() => {
-    document.title = `${t('brand.name')} – ${t('nav.monitoring')}`;
+    document.title = `${t('brand.name')} | ${t('nav.monitoring')}`;
   }, [t, locale]);
-
-  useEffect(() => {
-    if (activeTab !== MONITORING_TAB.ASSISTANT) {
-      setAssistantHistoryOpen(false);
-    }
-  }, [activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,6 +170,7 @@ export function MonitoringPage() {
         if (entry.ownerUserId && entry.ownerUserId !== ownerId) return;
         if (!entry.ownerUserId) return;
       }
+      // Keep session counters (Perlindungan) updating immediately on each hit.
       setAttacks((p) => pushAttack(p, payload));
     }, setSocketConnected);
   }, [socketEnabled, bridgeState]);
@@ -205,6 +209,7 @@ export function MonitoringPage() {
     const id = window.setInterval(() => {
       const cutoff = Date.now() - LIVE_WINDOW_MS;
       setAttacks((prev) => prev.filter((a) => a.createdAt >= cutoff));
+      setMapDayStart(startOfLocalDay());
     }, 60_000);
     return () => window.clearInterval(id);
   }, []);
@@ -240,7 +245,9 @@ export function MonitoringPage() {
 
   const eventsPerMin = useMemo(() => {
     const now = Date.now();
-    return attacks.filter((a) => now - a.createdAt < 60000).length;
+    return attacks
+      .filter((a) => now - a.createdAt < 60000)
+      .reduce((sum, a) => sum + (typeof a.hitCount === 'number' && a.hitCount > 0 ? a.hitCount : 1), 0);
   }, [attacks]);
 
   const loadHistory = useCallback(async () => {
@@ -289,16 +296,16 @@ export function MonitoringPage() {
     [attacks, historyAttacks],
   );
 
+  // Map hanya menampilkan rute pada hari kalender lokal saat ini.
+  // Data lama tetap berada di MongoDB dan tetap tersedia untuk History/Intel.
+  const mapAttacks = useMemo(
+    () => attacks.filter((attack) => attack.createdAt >= mapDayStart),
+    [attacks, mapDayStart],
+  );
+
   const openIncidentModal = useCallback((a) => {
     setSelectedAttackId(a.id);
     setModalAttack(a);
-  }, []);
-
-  const handleSendToAI = useCallback((attack) => {
-    if (!attack) return;
-    setModalAttack(null);
-    setPendingExplainAttack(attack);
-    setActiveTab(MONITORING_TAB.ASSISTANT);
   }, []);
 
   const selectAttackPreview = useCallback((a) => {
@@ -349,15 +356,9 @@ export function MonitoringPage() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         bridgeBannerVisible={bridgeState === 'bad'}
-        onAssistantHistory={() => setAssistantHistoryOpen(true)}
-        assistantHistoryOpen={assistantHistoryOpen}
       />
 
-      <div
-        className={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col pl-0 thin-scrollbar-dark lg:pl-16 ${
-          activeTab === MONITORING_TAB.ASSISTANT ? 'overflow-hidden' : 'overflow-y-auto overscroll-y-contain lg:overflow-hidden'
-        }`}
-      >
+      <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain pl-0 thin-scrollbar-dark lg:overflow-hidden lg:pl-16">
         <div
           className={
             activeTab === MONITORING_TAB.MAP
@@ -371,8 +372,9 @@ export function MonitoringPage() {
               <div className="flex min-w-0 flex-col lg:min-h-0 lg:h-full lg:flex-1">
                 <div className={`${mapCardClass} h-[50vh] min-h-[240px] max-h-[28rem] shrink-0 lg:h-auto lg:max-h-none`}>
                   <div className="pointer-events-none absolute left-0 right-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-slark-primary/30 to-transparent" />
+                  <MapTickerBanner />
                   <AttackMap
-                    attacks={attacks}
+                    attacks={mapAttacks}
                     selectedAttackId={selectedAttackId}
                     onSelectAttackId={handleMapSelectAttackId}
                   />
@@ -408,30 +410,12 @@ export function MonitoringPage() {
         {activeTab === MONITORING_TAB.INTEL && (
           <IntelTabView attacks={intelIncidents} shellClass="lg:min-h-0 lg:flex-1" />
         )}
-
-        {activeTab === MONITORING_TAB.ASSISTANT && (
-          <section
-            className="relative z-0 flex min-h-0 w-full flex-1 flex-col lg:mx-auto lg:max-w-[1920px] lg:px-5 lg:pb-3 lg:pt-2"
-            aria-label={t('aiChat.title')}
-          >
-            <ThreatAIChatPanel
-              ref={threatAiRef}
-              theme="dark"
-              pendingExplainAttack={pendingExplainAttack}
-              onPendingExplainHandled={() => setPendingExplainAttack(null)}
-              historyOpen={assistantHistoryOpen}
-              onHistoryOpenChange={setAssistantHistoryOpen}
-              className="flex h-full min-h-0 flex-1 flex-col max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:ring-0 lg:rounded-2xl lg:border lg:border-slate-700/60 lg:shadow-lg lg:ring-1 lg:ring-black/20"
-            />
-          </section>
-        )}
       </div>
 
       <IncidentDetailModal
         attack={modalAttack}
         variant="dark"
         onClose={() => setModalAttack(null)}
-        onSendToAI={modalAttack ? () => handleSendToAI(modalAttack) : undefined}
       />
     </div>
   );

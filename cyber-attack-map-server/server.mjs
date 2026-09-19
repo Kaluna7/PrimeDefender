@@ -5,6 +5,7 @@
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { createApiKey, loadApiKeys, revokeApiKey, verifyApiKey } from './ingest/apiKeys.mjs';
+import { enrichPayloadGeo } from './ingest/geoIp.mjs';
 import { normalizeIncident } from './ingest/normalizeIncident.mjs';
 import {
   findHistoryByOwnerUserId,
@@ -32,23 +33,19 @@ import {
 } from './auth/auth.mjs';
 import { verifySmtpConnection } from './auth/smtp.mjs';
 import {
-  confirmOrderPayment,
-  createCoreChargeTransaction,
-  createSnapTransaction,
-  getPublicPaymentConfig,
-  handleMidtransNotification,
-  midtransConfigured,
-  syncPendingPaymentsForEmail,
-} from './payment/payments.mjs';
-import { findUserAuthByEmail, getUserByEmail, migrateLegacyVerifiedUsers, persistenceRequired } from './db/usersMongo.mjs';
-import { ensureUserApiKey, resolveUserByIngestApiKey, verifyUserIngestApiKey } from './auth/userApiKeys.mjs';
+  findUserAuthByEmail,
+  getUserByEmail,
+  grantFreeApiAccess,
+  migrateGrantFreeApiAccess,
+  migrateLegacyVerifiedUsers,
+} from './db/usersMongo.mjs';
+import { resolveUserByIngestApiKey, verifyUserIngestApiKey } from './auth/userApiKeys.mjs';
 import { startApiKeyAccessChallenge, verifyApiKeyAccessChallenge } from './auth/apiKeyAccess.mjs';
 import {
   completePasswordChange,
   startPasswordChangeChallenge,
   verifyPasswordChangeCode,
 } from './auth/passwordChange.mjs';
-import { aiConfigured, runAiChat, runDailyCommentary } from './ai/fireworks.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() || '';
@@ -88,10 +85,20 @@ function buildCorsAllowedOrigins() {
 const CORS_ALLOWED_ORIGINS = buildCorsAllowedOrigins();
 const VERCEL_ORIGIN_RE = /^https:\/\/[\w.-]+\.vercel\.app$/;
 
+function isLocalDevOrigin(origin) {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 function isAllowedCorsOrigin(origin) {
   if (!origin) return false;
   if (CORS_ALLOWED_ORIGINS.has(origin)) return true;
   if (VERCEL_ORIGIN_RE.test(origin)) return true;
+  if (isLocalDevOrigin(origin)) return true;
   return false;
 }
 
@@ -115,10 +122,9 @@ function applyCors(req, res) {
   if (isAllowedCorsOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Ingest-Token, X-Api-Key, X-Admin-Secret'
@@ -164,9 +170,6 @@ function healthPayload() {
     authConfigured: authConfigured(),
     mongo: {
       persistence: !mongoDisabled(),
-    },
-    ai: {
-      configured: aiConfigured(),
     },
   };
 }
@@ -357,6 +360,59 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (p === '/auth/forgot-password/send' && req.method === 'POST') {
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const email = String(body.email || '').toLowerCase().trim();
+      if (!email || !email.includes('@')) {
+        sendJson(res, 400, { ok: false, error: 'invalid_email' });
+        return;
+      }
+      const result = await startPasswordChangeChallenge({
+        email,
+        purpose: 'reset',
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/auth/forgot-password/verify' && req.method === 'POST') {
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await verifyPasswordChangeCode({
+        email: body.email,
+        challengeId: body.challengeId,
+        code: body.code,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
+  if (p === '/auth/forgot-password/complete' && req.method === 'POST') {
+    try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const result = await completePasswordChange({
+        email: body.email,
+        challengeId: body.challengeId,
+        password: body.password,
+        confirmPassword: body.confirmPassword,
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'bad_json' });
+    }
+    return;
+  }
+
   if (p === '/auth/me' && req.method === 'GET') {
     const session = sessionFromRequest(req);
     if (!session) {
@@ -364,8 +420,8 @@ const httpServer = createServer(async (req, res) => {
       return;
     }
     let stored = await getUserByEmail(session.email);
-    if (stored?.subscription?.active && !stored?.apiKey?.hasKey) {
-      await ensureUserApiKey(session.email);
+    if (!stored?.apiKey?.hasKey) {
+      await grantFreeApiAccess(session.email);
       stored = await getUserByEmail(session.email);
     }
     const authRecord = await findUserAuthByEmail(session.email);
@@ -377,7 +433,6 @@ const httpServer = createServer(async (req, res) => {
             email: stored.email,
             name: stored.name,
             picture: stored.picture,
-            subscription: stored.subscription,
             apiKey: stored.apiKey,
             hasPassword: Boolean(authRecord?.passwordHash),
           }
@@ -385,7 +440,6 @@ const httpServer = createServer(async (req, res) => {
             email: session.email,
             name: session.name,
             picture: session.picture,
-            subscription: null,
             apiKey: null,
             hasPassword: Boolean(authRecord?.passwordHash),
           },
@@ -443,10 +497,17 @@ const httpServer = createServer(async (req, res) => {
       return;
     }
     try {
+      const rawText = await readBody(req);
+      const body = JSON.parse(rawText || '{}');
+      const purpose = body.purpose === 'setup' ? 'setup' : 'reset';
       const result = await startPasswordChangeChallenge({
         email: session.email,
         name: session.name,
+        purpose,
       });
+      if (!result.ok) {
+        console.error('[password-change/send]', result.error);
+      }
       sendJson(res, result.ok ? 200 : 400, result);
     } catch {
       sendJson(res, 400, { ok: false, error: 'bad_json' });
@@ -548,138 +609,6 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
-  if (p === '/payment/config' && req.method === 'GET') {
-    sendJson(res, 200, getPublicPaymentConfig());
-    return;
-  }
-
-  if (p === '/payment/snap' && req.method === 'POST') {
-    const session = sessionFromRequest(req);
-    if (!session?.email) {
-      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
-      return;
-    }
-    if (!midtransConfigured()) {
-      sendJson(res, 503, { ok: false, error: 'midtrans_not_configured' });
-      return;
-    }
-    if (persistenceRequired()) {
-      sendJson(res, 503, {
-        ok: false,
-        error: 'mongo_disabled',
-        hint: 'Set MONGODB_DISABLED=false and run MongoDB for subscriptions.',
-      });
-      return;
-    }
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const result = await createSnapTransaction({
-        email: session.email,
-        name: session.name || session.email,
-        planId: body.planId,
-        paymentMethod: body.paymentMethod,
-        frontendUrl: FRONTEND_URL,
-      });
-      if (!result.ok) {
-        sendJson(res, 400, result);
-        return;
-      }
-      sendJson(res, 200, result);
-    } catch {
-      sendJson(res, 400, { ok: false, error: 'bad_json' });
-    }
-    return;
-  }
-
-  if (p === '/payment/charge' && req.method === 'POST') {
-    const session = sessionFromRequest(req);
-    if (!session?.email) {
-      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
-      return;
-    }
-    if (!midtransConfigured()) {
-      sendJson(res, 503, { ok: false, error: 'midtrans_not_configured' });
-      return;
-    }
-    if (persistenceRequired()) {
-      sendJson(res, 503, {
-        ok: false,
-        error: 'mongo_disabled',
-        hint: 'Set MONGODB_DISABLED=false and run MongoDB for subscriptions.',
-      });
-      return;
-    }
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const result = await createCoreChargeTransaction({
-        email: session.email,
-        name: session.name || session.email,
-        planId: body.planId,
-        paymentMethod: body.paymentMethod,
-        frontendUrl: FRONTEND_URL,
-      });
-      if (!result.ok) {
-        sendJson(res, 400, result);
-        return;
-      }
-      sendJson(res, 200, result);
-    } catch {
-      sendJson(res, 400, { ok: false, error: 'bad_json' });
-    }
-    return;
-  }
-
-  if (p === '/payment/confirm' && req.method === 'POST') {
-    const session = sessionFromRequest(req);
-    if (!session?.email) {
-      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
-      return;
-    }
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const orderId = body.orderId || body.order_id;
-      if (!orderId) {
-        sendJson(res, 400, { ok: false, error: 'missing_order_id' });
-        return;
-      }
-      const result = await confirmOrderPayment(orderId, session.email);
-      sendJson(res, result.ok ? 200 : 400, result);
-    } catch {
-      sendJson(res, 400, { ok: false, error: 'bad_json' });
-    }
-    return;
-  }
-
-  if (p === '/payment/sync' && req.method === 'POST') {
-    const session = sessionFromRequest(req);
-    if (!session?.email) {
-      sendJson(res, 401, { ok: false, error: 'not_authenticated' });
-      return;
-    }
-    try {
-      const result = await syncPendingPaymentsForEmail(session.email);
-      sendJson(res, 200, result);
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: 'sync_failed', message: String(e?.message || e) });
-    }
-    return;
-  }
-
-  if (p === '/payment/notification' && req.method === 'POST') {
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const result = await handleMidtransNotification(body);
-      sendJson(res, result.ok ? 200 : 403, result);
-    } catch {
-      sendJson(res, 400, { ok: false, error: 'bad_json' });
-    }
-    return;
-  }
-
   if (p === '/auth/signout' && req.method === 'POST') {
     const bearer = req.headers.authorization?.replace(/^Bearer\s+/i, '');
     const cookieToken = parseSessionCookie(req.headers.cookie);
@@ -696,96 +625,7 @@ const httpServer = createServer(async (req, res) => {
       configured: authConfigured(),
       google: Boolean(cfg.googleClientId && cfg.googleClientSecret),
       smtp: smtpConfigured(),
-      ai: aiConfigured(),
     });
-    return;
-  }
-
-  if (p === '/ai/status' && req.method === 'GET') {
-    sendJson(res, 200, { ok: true, configured: aiConfigured() });
-    return;
-  }
-
-  if (p === '/ai/chat' && req.method === 'POST') {
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const variant = body.variant === 'landing' ? 'landing' : 'threat';
-      if (variant !== 'landing') {
-        const session = sessionFromRequest(req);
-        if (!session?.email) {
-          sendJson(res, 401, { ok: false, error: 'not_authenticated' });
-          return;
-        }
-      }
-      const messages = Array.isArray(body.messages) ? body.messages : [];
-      const locale = typeof body.locale === 'string' ? body.locale : 'en';
-      const result = await runAiChat({ variant, messages, locale });
-      sendJson(res, 200, { ok: true, reply: result.reply });
-    } catch (e) {
-      if (e?.code === 'ai_not_configured') {
-        sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
-        return;
-      }
-      if (e?.code === 'ai_rate_limited') {
-        sendJson(res, 429, { ok: false, error: 'ai_rate_limited' });
-        return;
-      }
-      if (e?.code === 'ai_invalid_key') {
-        sendJson(res, 503, { ok: false, error: 'ai_invalid_key' });
-        return;
-      }
-      if (e?.code === 'ai_model_not_found') {
-        sendJson(res, 503, { ok: false, error: 'ai_model_not_found' });
-        return;
-      }
-      if (e?.code === 'bad_request') {
-        sendJson(res, 400, { ok: false, error: e.message });
-        return;
-      }
-      if (e?.code === 'ai_chat_failed') {
-        console.error('[ai/chat]', e?.message || e);
-        sendJson(res, 502, { ok: false, error: 'ai_chat_failed' });
-        return;
-      }
-      console.error('[ai/chat]', e?.message || e);
-      sendJson(res, 502, { ok: false, error: 'ai_chat_failed' });
-    }
-    return;
-  }
-
-  if (p === '/ai/intel/daily-commentary' && req.method === 'POST') {
-    try {
-      const rawText = await readBody(req);
-      const body = JSON.parse(rawText || '{}');
-      const dailyPoints = Array.isArray(body.dailyPoints) ? body.dailyPoints : [];
-      const locale = typeof body.locale === 'string' ? body.locale : 'en';
-      const result = await runDailyCommentary({ dailyPoints, locale });
-      sendJson(res, 200, { ok: true, comments: result.comments });
-    } catch (e) {
-      if (e?.code === 'ai_not_configured') {
-        sendJson(res, 503, { ok: false, error: 'ai_not_configured' });
-        return;
-      }
-      if (e?.code === 'ai_rate_limited') {
-        sendJson(res, 429, { ok: false, error: 'ai_rate_limited' });
-        return;
-      }
-      if (e?.code === 'ai_invalid_key') {
-        sendJson(res, 503, { ok: false, error: 'ai_invalid_key' });
-        return;
-      }
-      if (e?.code === 'ai_model_not_found') {
-        sendJson(res, 503, { ok: false, error: 'ai_model_not_found' });
-        return;
-      }
-      if (e?.code === 'invalid_commentary_format') {
-        sendJson(res, 502, { ok: false, error: 'invalid_commentary_format' });
-        return;
-      }
-      console.error('[ai/intel/daily-commentary]', e?.message || e);
-      sendJson(res, 502, { ok: false, error: 'commentary_failed' });
-    }
     return;
   }
 
@@ -939,36 +779,56 @@ const httpServer = createServer(async (req, res) => {
       const parsed = JSON.parse(rawText);
       const payload = parsed.attack ?? parsed.event ?? parsed;
 
-      if (
-        !payload ||
-        !payload.from ||
-        !payload.to ||
-        typeof payload.from.lat !== 'number' ||
-        typeof payload.from.lon !== 'number' ||
-        typeof payload.to.lat !== 'number' ||
-        typeof payload.to.lon !== 'number'
-      ) {
+      if (!payload || !payload.to || typeof payload.to.lat !== 'number' || typeof payload.to.lon !== 'number') {
         sendJson(res, 400, {
           ok: false,
           error: 'invalid_payload',
-          hint: 'Require from: { lat, lon }, to: { lat, lon }',
+          hint: 'Require to: { lat, lon }. from may be enriched from attackerIp.',
         });
         return;
       }
 
-      const incident = normalizeIncident(payload);
+      // Server-side GeoIP: prefer city-level lookup from attackerIp.
+      // Cap wait so socket broadcast stays near-realtime.
+      const enriched = await Promise.race([
+        enrichPayloadGeo(payload),
+        new Promise((resolve) => {
+          setTimeout(() => resolve(payload), 1500);
+        }),
+      ]);
+
+      if (
+        !enriched.from ||
+        typeof enriched.from.lat !== 'number' ||
+        typeof enriched.from.lon !== 'number'
+      ) {
+        sendJson(res, 400, {
+          ok: false,
+          error: 'invalid_payload',
+          hint: 'Require from: { lat, lon } or a public attackerIp for GeoIP enrichment',
+        });
+        return;
+      }
+
+      const incident = normalizeIncident(enriched);
       const owner = await resolveIngestOwner(req);
       if (owner) {
         incident.ownerUserId = owner.id;
         incident.ownerEmail = owner.email;
       }
+
+      // Simpan lebih dulu agar refresh halaman selalu dapat memuat ulang insiden dari MongoDB.
+      const stored = await insertIncident(incident);
+      if (!stored.ok) {
+        console.warn('[ingest] incident persistence failed', stored.error || 'mongo unavailable');
+      }
+
       if (incident.ownerUserId) {
         io.to(`user:${incident.ownerUserId}`).emit('attack', incident);
       } else {
         io.emit('attack', incident);
       }
-      await insertIncident(incident);
-      const tag = [incident.siteId, incident.tenantId, incident.id].filter(Boolean).join(' ') || 'event';
+      const tag = [incident.siteId, incident.id].filter(Boolean).join(' ') || 'event';
       console.log('[ingest] broadcast → UI', tag);
       sendJson(res, 200, { ok: true, broadcast: true });
     } catch (e) {
@@ -1014,14 +874,17 @@ io.on('connection', async (socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`[bridge v${BRIDGE_VERSION}] ingest: ${INGEST_ENABLED ? 'ON' : 'OFF (set INGEST_ENABLED=true)'}`);
+  console.log(`[bridge v${BRIDGE_VERSION}] ingest: ${INGEST_ENABLED ? 'ON' : 'OFF (set INGEST_ENABLED=true in .env)'}`);
   console.log(`[cors] frontend: ${FRONTEND_URL}`);
-  console.log(`[cors] also allows https://*.vercel.app`);
+  const localFrontend = FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1');
+  if (!localFrontend) {
+    console.log(`[cors] also allows https://*.vercel.app`);
+  }
   console.log(`HTTP  GET  http://localhost:${PORT}/health`);
   console.log(`HTTP  POST http://localhost:${PORT}/ingest  (X-Api-Key or INGEST_TOKEN)`);
   console.log(`ADMIN      http://localhost:${PORT}/admin/api-keys  (X-Admin-Secret)`);
   if (ADMIN_SECRET) console.log('Admin: key management enabled');
-  else console.log('Admin: set ADMIN_SECRET to create API keys');
+  else console.log('Admin: set ADMIN_SECRET in .env to create API keys');
   console.log(`Socket.io  http://localhost:${PORT}`);
   if (smtpConfigured()) {
     verifySmtpConnection()
@@ -1034,22 +897,25 @@ httpServer.listen(PORT, () => {
       })
       .catch((e) => console.warn('[smtp] verify error:', e?.message || e));
   } else {
-    console.warn('[smtp] not configured — set SMTP_* variables on Railway');
+    console.warn('[smtp] not configured — set SMTP_* in .env (use pnpm run dev to load it)');
   }
+  logMongoTarget();
   if (!mongoDisabled()) {
-    logMongoTarget();
     pingMongo()
       .then((ok) => {
         if (ok) console.log('[mongo] connected');
         else {
-          console.warn(
-            '[mongo] not connected — check Atlas Network Access (0.0.0.0/0), user password, and MONGODB_URI (no quotes)'
-          );
+          console.warn('[mongo] not connected — check MONGODB_URI in .env and that MongoDB is running');
         }
       })
       .catch((e) => console.warn('[mongo] ping error:', e?.message || e));
     migrateLegacyVerifiedUsers()
       .then(() => console.log('[auth] legacy users marked email-verified'))
       .catch((e) => console.warn('[auth] legacy user migration skipped:', e?.message || e));
+    migrateGrantFreeApiAccess()
+      .then((r) => console.log(`[auth] free API access granted for ${r?.updated || 0} user(s)`))
+      .catch((e) => console.warn('[auth] free API access migration skipped:', e?.message || e));
+  } else {
+    console.warn('[mongo] disabled — login features need a real MONGODB_URI');
   }
 });

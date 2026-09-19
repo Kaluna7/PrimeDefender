@@ -5,14 +5,41 @@ function stripEnv(value) {
   return value.trim().replace(/^["']|["']$/g, '');
 }
 
-const URI = stripEnv(process.env.MONGODB_URI) || 'mongodb://127.0.0.1:27017';
-const DB_NAME = stripEnv(process.env.MONGODB_DB) || 'slark';
+function normalizeMongoUri(value) {
+  return stripEnv(value).replace(/\/+$/, '');
+}
+
+function isLocalMongoUri(uri) {
+  if (!uri) return true;
+  try {
+    const parsed = new URL(uri);
+    const host = (parsed.hostname || '').toLowerCase();
+    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+  } catch {
+    return /127\.0\.0\.1|localhost/i.test(uri);
+  }
+}
+
+function runningOnRailway() {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_SERVICE_NAME ||
+      process.env.RAILWAY_PROJECT_ID
+  );
+}
+
+const RAW_URI = stripEnv(process.env.MONGODB_URI);
+const URI = normalizeMongoUri(RAW_URI) || 'mongodb://127.0.0.1:27017';
+const DB_NAME = stripEnv(process.env.MONGODB_DB) || 'Jagra Baya Maya';
 const COLLECTION = stripEnv(process.env.MONGODB_COLLECTION) || 'incidents';
+const LOCAL_MONGO = isLocalMongoUri(URI);
+const ON_RAILWAY = runningOnRailway();
 
 const MONGO_OPTIONS = {
   maxPoolSize: 10,
   serverSelectionTimeoutMS: 10_000,
   connectTimeoutMS: 10_000,
+  ignoreUndefined: true,
 };
 
 /** @type {MongoClient | null} */
@@ -26,10 +53,19 @@ let indexesEnsured = false;
 
 export function mongoDisabled() {
   const disabled = stripEnv(process.env.MONGODB_DISABLED);
-  return disabled === 'true' || URI === '' || URI === 'mongodb://127.0.0.1:27017';
+  if (disabled === 'true' || URI === '') return true;
+  // Localhost Mongo is fine on a laptop, but never on Railway.
+  if (ON_RAILWAY && LOCAL_MONGO) return true;
+  return false;
 }
 
 export function logMongoTarget() {
+  if (ON_RAILWAY && LOCAL_MONGO) {
+    console.error(
+      '[mongo] MONGODB_URI points to localhost — set Atlas URI in Railway Variables (e.g. mongodb+srv://...)'
+    );
+    return;
+  }
   try {
     const host = URI.includes('@') ? URI.split('@')[1]?.split('/')[0] : URI;
     console.log(`[mongo] target: ${host || '(unset)'}`);
@@ -38,12 +74,25 @@ export function logMongoTarget() {
   }
 }
 
+const INCIDENT_FILTER = { category: { $exists: true } };
+
 async function ensureIndexes(coll) {
   if (indexesEnsured) return;
   await coll.createIndex({ createdAt: -1 });
   await coll.createIndex({ storedAt: -1 });
   await coll.createIndex({ ownerUserId: 1, createdAt: -1 });
   await coll.createIndex({ ownerEmail: 1, createdAt: -1 });
+
+  for (const oldAiIndex of [
+    'docType_1_ownerEmail_1_dateKey_1_slot_1_locale_1',
+    'daily_comment_unique',
+  ]) {
+    try {
+      await coll.dropIndex(oldAiIndex);
+    } catch {
+      /* legacy index may not exist */
+    }
+  }
   indexesEnsured = true;
 }
 
@@ -51,24 +100,31 @@ export async function getCollection() {
   if (mongoDisabled()) return null;
   if (collection) return collection;
   if (!connectPromise) {
-    connectPromise = MongoClient.connect(URI, MONGO_OPTIONS)
-      .then((c) => {
+    connectPromise = (async () => {
+      try {
+        const c = await MongoClient.connect(URI, MONGO_OPTIONS);
         client = c;
         db = client.db(DB_NAME);
         collection = db.collection(COLLECTION);
-        return ensureIndexes(collection).then(() => collection);
-      })
-      .catch((e) => {
-        connectPromise = null;
+        try {
+          await ensureIndexes(collection);
+        } catch (e) {
+          console.warn('[mongo] index setup warning:', e?.message || e);
+        }
+        return collection;
+      } catch (e) {
         collection = null;
         db = null;
-        if (client) {
-          client.close().catch(() => {});
-        }
-        client = null;
+        connectPromise = null;
         console.error('[mongo] connect failed:', e?.message || e);
+        const toClose = client;
+        client = null;
+        if (toClose) {
+          toClose.close().catch(() => {});
+        }
         return null;
-      });
+      }
+    })();
   }
   return connectPromise;
 }
@@ -130,9 +186,9 @@ export async function findRecentByCreatedAt(ms) {
   if (!coll) return [];
   const cutoff = Date.now() - ms;
   const rows = await coll
-    .find({ createdAt: { $gte: cutoff } })
+    .find({ ...INCIDENT_FILTER, createdAt: { $gte: cutoff } })
     .sort({ createdAt: -1 })
-    .limit(500)
+    .limit(1001)
     .toArray();
   return rows.map(stripMongo);
 }
@@ -148,7 +204,7 @@ export async function findHistoryOlderThanWindow(opts) {
   const { windowMs, skip, limit } = opts;
   const cutoff = Date.now() - windowMs;
   const rows = await coll
-    .find({ createdAt: { $lt: cutoff } })
+    .find({ ...INCIDENT_FILTER, createdAt: { $lt: cutoff } })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
@@ -167,9 +223,9 @@ export async function findRecentByOwnerUserId(ownerUserId, ms) {
   if (!coll) return [];
   const cutoff = Date.now() - ms;
   const rows = await coll
-    .find({ ownerUserId, createdAt: { $gte: cutoff } })
+    .find({ ...INCIDENT_FILTER, ownerUserId, createdAt: { $gte: cutoff } })
     .sort({ createdAt: -1 })
-    .limit(500)
+    .limit(1001)
     .toArray();
   return rows.map(stripMongo);
 }
@@ -183,7 +239,7 @@ export async function findHistoryByOwnerUserId(opts) {
   if (!coll) return [];
   const cutoff = Date.now() - opts.windowMs;
   const rows = await coll
-    .find({ ownerUserId: opts.ownerUserId, createdAt: { $lt: cutoff } })
+    .find({ ...INCIDENT_FILTER, ownerUserId: opts.ownerUserId, createdAt: { $lt: cutoff } })
     .sort({ createdAt: -1 })
     .skip(opts.skip)
     .limit(opts.limit)

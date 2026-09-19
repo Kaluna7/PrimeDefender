@@ -15,11 +15,11 @@ import {
 } from './attackerTodayUtils.js';
 
 function dash(s) {
-  return s && String(s).trim() ? s : '—';
+  return s && String(s).trim() ? s : '-';
 }
 
 function fmtCoord(from) {
-  if (!from || typeof from.lat !== 'number' || typeof from.lon !== 'number') return '—';
+  if (!from || typeof from.lat !== 'number' || typeof from.lon !== 'number') return '-';
   const ns = from.lat >= 0 ? 'N' : 'S';
   const ew = from.lon >= 0 ? 'E' : 'W';
   return `${Math.abs(from.lat).toFixed(4)}°${ns}  ${Math.abs(from.lon).toFixed(4)}°${ew}`;
@@ -143,11 +143,11 @@ function AttackerProfilePanel({ attacks, ip, onViewDetails, onSelectIncident, t,
               <div className="col-span-1 rounded border border-slate-600/40 bg-white/[0.03] px-2 py-2 text-left">
                 <p className="text-[8px] uppercase tracking-wider text-slate-500">{t('detail.firstAttack')}</p>
                 <p className="font-mono text-[9px] text-slate-300">
-                  {window.firstAt ? formatIncidentWhen(window.firstAt, locale, 'short') : '—'}
+                  {window.firstAt ? formatIncidentWhen(window.firstAt, locale, 'short') : '-'}
                 </p>
                 <p className="mt-1.5 text-[8px] uppercase tracking-wider text-slate-500">{t('detail.lastAttack')}</p>
                 <p className="font-mono text-[9px] text-slate-300">
-                  {window.lastAt ? formatIncidentWhen(window.lastAt, locale, 'short') : '—'}
+                  {window.lastAt ? formatIncidentWhen(window.lastAt, locale, 'short') : '-'}
                 </p>
               </div>
             </div>

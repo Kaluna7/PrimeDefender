@@ -9,7 +9,7 @@ export function AppShell() {
   const lockShellScroll =
     location.pathname === '/monitoring' ||
     location.pathname === '/settings' ||
-    location.pathname === '/purchase';
+    location.pathname === '/api-key';
 
   const isMonitoring = location.pathname === '/monitoring';
   const shellBg = isMonitoring

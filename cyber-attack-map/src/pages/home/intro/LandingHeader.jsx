@@ -10,13 +10,6 @@ const LANGUAGE_OPTIONS = [
   { id: 'id', labelKey: 'profile.languageIndonesian' },
 ];
 
-const NAV = [
-  { href: '#features', labelKey: 'home.sectionFeatures' },
-  { href: '#flow', labelKey: 'home.sectionFlow' },
-  { href: '#pricing', labelKey: 'home.sectionPricing' },
-  { href: '#faq', labelKey: 'home.sectionFaq' },
-];
-
 const SCROLL_DELTA = 8;
 const TOP_REVEAL = 32;
 const HEADER_ZONE_PX = 68;
@@ -95,8 +88,8 @@ export function LandingHeader({ onGetStarted }) {
     };
   }, [langOpen]);
 
-  const navLinkClass = `landing-header-nav whitespace-nowrap rounded-lg px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition xl:px-3 xl:text-xs xl:tracking-[0.14em] ${
-    overHero ? 'landing-header-nav--hero' : 'landing-header-nav--light'
+  const langBtnClass = `landing-header-lang flex items-center gap-1 rounded-lg border px-2 py-1.5 transition sm:gap-1.5 sm:px-2.5 sm:py-2 ${
+    overHero ? 'landing-header-lang--hero' : 'landing-header-lang--light'
   }`;
 
   return (
@@ -106,8 +99,8 @@ export function LandingHeader({ onGetStarted }) {
       } ${hidden ? '-translate-y-full pointer-events-none' : 'translate-y-0'}`}
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 py-3.5 pl-4 pr-3 sm:gap-4 sm:pl-6 sm:pr-5 lg:pl-8 lg:pr-8 xl:pl-10 xl:pr-10">
-        <Link to="/" className="group flex shrink-0 items-center gap-2.5 justify-self-start">
+      <div className="flex w-full items-center justify-between gap-3 py-3.5 pl-4 pr-3 sm:gap-4 sm:pl-6 sm:pr-5 lg:pl-8 lg:pr-8 xl:pl-10 xl:pr-10">
+        <Link to="/" className="group flex shrink-0 items-center gap-2.5">
           <img
             src={siteIcon}
             alt=""
@@ -125,21 +118,7 @@ export function LandingHeader({ onGetStarted }) {
           </span>
         </Link>
 
-        <nav
-          className="hidden min-w-0 items-center justify-center gap-0.5 justify-self-center lg:flex xl:gap-1"
-          aria-label="Landing"
-        >
-          {NAV.map((item) => (
-            <a key={item.href} href={item.href} className={navLinkClass}>
-              {t(item.labelKey)}
-            </a>
-          ))}
-          <Link to="/about" className={navLinkClass}>
-            {t('nav.about')}
-          </Link>
-        </nav>
-
-        <div className="flex shrink-0 items-center gap-2 justify-self-end sm:gap-2.5">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           <div className="relative" ref={langRef}>
             <button
               type="button"
@@ -147,9 +126,7 @@ export function LandingHeader({ onGetStarted }) {
               aria-expanded={langOpen}
               aria-haspopup="listbox"
               aria-label={t('profile.changeLanguage')}
-              className={`landing-header-lang flex items-center gap-1 rounded-lg border px-2 py-1.5 transition sm:gap-1.5 sm:px-2.5 sm:py-2 ${
-                overHero ? 'landing-header-lang--hero' : 'landing-header-lang--light'
-              }`}
+              className={langBtnClass}
             >
               <LanguageFlag locale={locale} className="border-[#E2E8F0]/80 shadow-none" />
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.12em] sm:inline">

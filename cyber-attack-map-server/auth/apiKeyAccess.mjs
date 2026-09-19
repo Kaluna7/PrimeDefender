@@ -39,7 +39,7 @@ async function sendApiKeyCodeEmail({ toEmail, toName, code, purpose }) {
 
   const html = `
     <div style="font-family:system-ui,sans-serif;background:#0F172A;color:#F8FAFC;padding:24px">
-      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Slark</h1>
+      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Jagra Baya Maya</h1>
       <p>Hi ${toName || 'there'},</p>
       <p>Your verification code to ${actionEn}:</p>
       <p style="font-size:28px;letter-spacing:0.35em;font-weight:700;color:#C62828;margin:20px 0">${code}</p>
@@ -50,7 +50,9 @@ async function sendApiKeyCodeEmail({ toEmail, toName, code, purpose }) {
   return sendSmtpEmail({
     toEmail,
     toName,
-    subject: isReset ? 'Slark — reset API key verification' : 'Slark — view API key verification',
+    subject: isReset
+      ? 'Jagra Baya Maya — reset API key verification'
+      : 'Jagra Baya Maya — view API key verification',
     html,
   });
 }
@@ -64,9 +66,7 @@ function maskEmail(email) {
 
 async function assertUserCanAccessApiKey(email) {
   const user = await getUserByEmail(email);
-  if (!user?.subscription?.active) {
-    return { ok: false, error: 'subscription_inactive' };
-  }
+  if (!user) return { ok: false, error: 'user_not_found' };
   if (!user.apiKey?.hasKey) {
     await ensureUserApiKey(email);
     const refreshed = await getUserByEmail(email);

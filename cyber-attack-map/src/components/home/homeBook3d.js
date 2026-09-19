@@ -4,8 +4,8 @@ import * as THREE from 'three';
 export const MONITOR_BASE_SCALE = 1.15;
 /** Pengali ukuran mesh buku vs pembanding monitor (lebih besar dari konsol). */
 export const BOOK_MESH_SCALE_BOOST = 1.26;
-/** Pengali ukuran mesh cash vs pembanding monitor. */
-export const CASH_MESH_SCALE_BOOST = 1.2;
+/** Pengali ukuran mesh kunci API vs pembanding monitor. */
+export const CASH_MESH_SCALE_BOOST = 1.1;
 
 /** Buku “tutup” (tebal samping menghadap). */
 export const BOOK_CLOSED_EULER = /** @type {const} */ ([0, 1.35, 0]);

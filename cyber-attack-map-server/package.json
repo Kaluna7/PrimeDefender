@@ -4,15 +4,14 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
-    ".": "./server.mjs",
-    "./detection": "./middleware/detectionMiddleware.mjs"
+    ".": "./server.mjs"
   },
   "scripts": {
-    "start": "node --env-file=.env server.mjs",
+    "start": "node --env-file-if-exists=.env server.mjs",
     "dev": "node --env-file=.env server.mjs"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20"
   },
   "dependencies": {
     "mongodb": "^6.12.0",

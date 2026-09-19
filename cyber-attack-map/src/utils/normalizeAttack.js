@@ -103,12 +103,7 @@ export function normalizeAttackPayload(raw) {
       ? raw.id
       : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-  const tenantId = typeof raw.tenantId === 'string' ? raw.tenantId : undefined;
   const siteId = typeof raw.siteId === 'string' ? raw.siteId : undefined;
-  const incidentId =
-    typeof raw.incidentId === 'string' && raw.incidentId.trim()
-      ? raw.incidentId.trim().slice(0, 128)
-      : undefined;
 
   const blocked =
     typeof raw.blocked === 'boolean'
@@ -118,14 +113,6 @@ export function normalizeAttackPayload(raw) {
   const path = typeof raw.path === 'string' ? raw.path : undefined;
   const method = typeof raw.method === 'string' ? raw.method : undefined;
   const action = typeof raw.action === 'string' ? raw.action : undefined;
-
-  let osiLayer;
-  const L = raw.osiLayer ?? raw.layer;
-  if (typeof L === 'number' && L >= 1 && L <= 7) osiLayer = L;
-  else if (typeof L === 'string' && /^\d+$/.test(L)) {
-    const n = Number(L);
-    if (n >= 1 && n <= 7) osiLayer = n;
-  }
 
   const attackerIpRaw = raw.attackerIp ?? raw.clientIp ?? raw.sourceIp;
   const attackerIp =
@@ -205,14 +192,11 @@ export function normalizeAttackPayload(raw) {
     ddos,
     sourceLabel,
     targetLabel,
-    tenantId,
     siteId,
-    incidentId,
     blocked: blocked || undefined,
     path,
     method,
     action,
-    osiLayer,
     attackerIp,
     userAgent,
     detection,
@@ -231,5 +215,9 @@ export function normalizeAttackPayload(raw) {
     ownerUserId: typeof raw.ownerUserId === 'string' ? raw.ownerUserId : undefined,
     ownerEmail: typeof raw.ownerEmail === 'string' ? raw.ownerEmail : undefined,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+    hitCount:
+      typeof raw.hitCount === 'number' && Number.isFinite(raw.hitCount) && raw.hitCount > 0
+        ? Math.round(raw.hitCount)
+        : 1,
   };
 }

@@ -4,7 +4,7 @@ import { Terminal } from 'lucide-react';
 import { useI18n } from '../../../i18n/I18nContext.jsx';
 import { SLARK as C } from '../../../theme/slarkColors.js';
 
-const HELP_COMMAND = 'slark --help';
+const HELP_COMMAND = 'jagra --help';
 const COPY_INTRO_MS = 1100;
 const TERMINAL_FADE_MS = 450;
 const TYPE_MS = 92;
@@ -12,10 +12,10 @@ const POST_TYPE_PAUSE_MS = 700;
 
 /** @type {Record<string, string>} */
 const STEP_COMMANDS = {
-  deploy: 'slark auth login --google',
-  shield: 'slark purchase activate && slark keys show',
-  ingest: 'npm install primedefender-client',
-  map: 'slark monitor --live --map',
+  deploy: 'jagra auth login --google',
+  shield: 'jagra keys show',
+  ingest: 'jagra middleware install  # python | js | php',
+  map: 'jagra monitor --live --map',
 };
 
 /** @param {{ visible: boolean; delay?: string; className?: string; children: import('react').ReactNode }} props */
@@ -36,7 +36,7 @@ function FlowTerminalPrompt() {
   return (
     <p className="flow-terminal-prompt-line" aria-hidden>
       <span className="flow-terminal-prompt-bracket">┌──(</span>
-      <span className="flow-terminal-prompt-user">slark</span>
+      <span className="flow-terminal-prompt-user">Jagra Baya Maya</span>
       <span className="flow-terminal-prompt-at">㉿</span>
       <span className="flow-terminal-prompt-host">kali</span>
       <span className="flow-terminal-prompt-bracket">)-[</span>
@@ -237,7 +237,7 @@ export function FlowSection({ eyebrow, title, subtitle, steps }) {
                 <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
                   <Terminal className="h-3.5 w-3.5 shrink-0 text-[#8B949E]" strokeWidth={2} aria-hidden />
                   <span className="truncate font-mono text-[11px] text-[#C9D1D9] sm:text-xs">
-                    slark@kali: ~/quickstart
+                    jagra@kali: ~/quickstart
                   </span>
                 </div>
                 <div className="w-[52px] shrink-0" aria-hidden />
@@ -263,8 +263,8 @@ export function FlowSection({ eyebrow, title, subtitle, steps }) {
                   <>
                     <FlowReveal visible={contentReady} delay="0.04s">
                       <pre className="mb-4 whitespace-pre-wrap text-[#6E7681] sm:mb-5" aria-hidden>
-                        {`Linux slark-kali 6.6.15-amd64 #1 SMP PREEMPT_DYNAMIC
-slark quickstart wizard — ${steps.length} steps`}
+                        {`Linux jagra-kali 6.6.15-amd64 #1 SMP PREEMPT_DYNAMIC
+${t('home.flowWizardBanner').replace('{n}', String(steps.length))}`}
                       </pre>
                     </FlowReveal>
 
@@ -273,7 +273,7 @@ slark quickstart wizard — ${steps.length} steps`}
                         <FlowTerminalStep
                           key={step.title}
                           index={index}
-                          command={STEP_COMMANDS[step.type] || 'slark help'}
+                          command={STEP_COMMANDS[step.type] || 'jagra help'}
                           title={step.title}
                           body={step.body}
                           visible={contentReady}

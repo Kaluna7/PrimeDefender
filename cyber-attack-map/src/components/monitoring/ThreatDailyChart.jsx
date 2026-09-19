@@ -6,9 +6,9 @@ import {
 } from '../../utils/threatDailySeries.js';
 
 const LINE = '#C62828';
-const PLOT_H = 220;
+const MIN_PLOT_H = 280;
 const LABEL_ROW_H = 40;
-const PAD = { top: 14, right: 12, bottom: 10, left: 40 };
+const PAD = { top: 18, right: 14, bottom: 12, left: 42 };
 
 const RANGE_IDS = [
   INTEL_CHART_RANGE.WEEK,
@@ -38,9 +38,9 @@ function computeMaxY(values) {
   return Math.max(padded, maxVal + 1);
 }
 
-function buildPoints(series, width, maxY) {
+function buildPoints(series, width, plotH, maxY) {
   const innerW = Math.max(width - PAD.left - PAD.right, 1);
-  const innerH = Math.max(PLOT_H - PAD.top - PAD.bottom, 1);
+  const innerH = Math.max(plotH - PAD.top - PAD.bottom, 1);
   const n = Math.max(series.length, 1);
 
   return series.map((point, i) => {
@@ -55,9 +55,9 @@ function linePath(points) {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
 }
 
-function areaPath(points) {
+function areaPath(points, plotH) {
   if (!points.length) return '';
-  const base = PLOT_H - PAD.bottom;
+  const base = plotH - PAD.bottom;
   const start = points[0];
   const end = points[points.length - 1];
   return `${linePath(points)} L ${end.x.toFixed(1)} ${base} L ${start.x.toFixed(1)} ${base} Z`;
@@ -76,7 +76,9 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
   const dark = variant === 'dark';
   const [range, setRange] = useState(INTEL_CHART_RANGE.WEEK);
   const wrapRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const plotRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [width, setWidth] = useState(640);
+  const [plotH, setPlotH] = useState(large || embedded ? 420 : MIN_PLOT_H);
   const [hoverIdx, setHoverIdx] = useState(/** @type {number | null} */ (null));
 
   const series = useMemo(
@@ -90,27 +92,41 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
   const rangePeak = useMemo(() => Math.max(...dailyCounts, 0), [dailyCounts]);
   const allZero = rangeTotal === 0;
 
-  const points = useMemo(() => buildPoints(series, width, maxY), [series, width, maxY]);
+  const points = useMemo(
+    () => buildPoints(series, width, plotH, maxY),
+    [series, width, plotH, maxY],
+  );
   const yTicks = useMemo(() => {
     const steps = 4;
     return Array.from({ length: steps + 1 }, (_, i) => Math.round((maxY / steps) * i));
   }, [maxY]);
 
   const labelStep = series.length > 12 ? Math.ceil(series.length / 8) : 1;
+  const innerH = plotH - PAD.top - PAD.bottom;
 
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return undefined;
-    const measure = () => setWidth(Math.max(el.clientWidth, 280));
+    const wrap = wrapRef.current;
+    const plot = plotRef.current;
+    if (!wrap) return undefined;
+
+    const measure = () => {
+      setWidth(Math.max(wrap.clientWidth, 280));
+      if (plot) {
+        const nextH = Math.max(plot.clientHeight, large || embedded ? MIN_PLOT_H : 220);
+        setPlotH(nextH);
+      }
+    };
+
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(wrap);
+    if (plot) ro.observe(plot);
     window.addEventListener('resize', measure);
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [large, embedded, series.length]);
 
   useEffect(() => {
     setHoverIdx(null);
@@ -120,11 +136,12 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
   const titleClass = dark ? 'text-slate-100' : 'text-slark-dark';
   const gridColor = dark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.28)';
   const axisColor = dark ? '#94a3b8' : '#64748b';
-  const innerH = PLOT_H - PAD.top - PAD.bottom;
 
   return (
     <section
-      className={`flex w-full flex-col ${embedded ? 'min-h-0 px-3 py-3 sm:px-4 sm:py-4' : 'px-3 py-4 sm:px-5 sm:py-5'} ${large && !embedded ? 'min-h-[20rem]' : ''}`}
+      className={`flex h-full min-h-0 w-full flex-col ${
+        embedded ? 'min-h-0 px-3 py-3 sm:px-4 sm:py-4' : 'px-3 py-4 sm:px-5 sm:py-5'
+      } ${large && !embedded ? 'min-h-[24rem]' : ''}`}
       aria-label={t('monitoring.intelChartTitle')}
     >
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
@@ -178,126 +195,135 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
 
       <div
         ref={wrapRef}
-        className={`relative mt-3 w-full shrink-0 overflow-hidden rounded-xl border ${
+        className={`relative mt-3 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border ${
           dark ? 'border-slate-600/50 bg-[#1a2332]' : 'border-slark-border bg-slark-card/40'
-        }`}
+        } ${embedded || large ? 'min-h-[22rem]' : 'min-h-[16rem]'}`}
       >
         {series.length === 0 ? (
-          <p className={`flex items-center justify-center px-4 py-14 text-center text-[11px] ${mutedClass}`}>
+          <p className={`flex flex-1 items-center justify-center px-4 py-14 text-center text-[11px] ${mutedClass}`}>
             {t('monitoring.intelChartEmpty')}
           </p>
         ) : (
           <>
-            <svg
-              viewBox={`0 0 ${width} ${PLOT_H}`}
-              width="100%"
-              height={PLOT_H}
-              preserveAspectRatio="none"
-              className="block"
-              role="img"
-              aria-label={t('monitoring.intelChartTitle')}
-            >
-              {yTicks.map((tick) => {
-                const y = PAD.top + innerH - (tick / maxY) * innerH;
-                return (
-                  <g key={tick}>
-                    <line x1={PAD.left} y1={y} x2={width - PAD.right} y2={y} stroke={gridColor} strokeWidth="1" />
+            <div ref={plotRef} className="relative min-h-0 flex-1">
+              <svg
+                viewBox={`0 0 ${width} ${plotH}`}
+                width="100%"
+                height="100%"
+                preserveAspectRatio="none"
+                className="absolute inset-0 block h-full w-full"
+                role="img"
+                aria-label={t('monitoring.intelChartTitle')}
+              >
+                {yTicks.map((tick) => {
+                  const y = PAD.top + innerH - (tick / maxY) * innerH;
+                  return (
+                    <g key={tick}>
+                      <line
+                        x1={PAD.left}
+                        y1={y}
+                        x2={width - PAD.right}
+                        y2={y}
+                        stroke={gridColor}
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={PAD.left - 6}
+                        y={y + 3.5}
+                        textAnchor="end"
+                        fill={axisColor}
+                        fontSize="10"
+                        fontFamily="ui-monospace, monospace"
+                      >
+                        {tick}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                <line
+                  x1={PAD.left}
+                  y1={plotH - PAD.bottom}
+                  x2={width - PAD.right}
+                  y2={plotH - PAD.bottom}
+                  stroke={axisColor}
+                  strokeWidth="1"
+                />
+
+                <path d={areaPath(points, plotH)} fill="rgba(198, 40, 40, 0.15)" />
+                <path
+                  d={linePath(points)}
+                  fill="none"
+                  stroke={LINE}
+                  strokeWidth="2.5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+
+                {points.map((p, i) => (
+                  <circle
+                    key={p.dateKey}
+                    cx={p.x}
+                    cy={p.y}
+                    r={hoverIdx === i ? 6 : 4.5}
+                    fill={LINE}
+                    stroke={dark ? '#1a2332' : '#fff'}
+                    strokeWidth="2"
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoverIdx(i)}
+                    onMouseLeave={() => setHoverIdx(null)}
+                  />
+                ))}
+
+                {hoverIdx != null && points[hoverIdx] ? (
+                  <g pointerEvents="none">
+                    <rect
+                      x={Math.min(Math.max(points[hoverIdx].x - 72, PAD.left), width - PAD.right - 144)}
+                      y={Math.max(points[hoverIdx].y - 44, 8)}
+                      width="144"
+                      height="36"
+                      rx="6"
+                      fill="rgba(15, 23, 42, 0.94)"
+                      stroke="rgba(148, 163, 184, 0.35)"
+                    />
                     <text
-                      x={PAD.left - 6}
-                      y={y + 3.5}
-                      textAnchor="end"
-                      fill={axisColor}
-                      fontSize="10"
-                      fontFamily="ui-monospace, monospace"
+                      x={Math.min(Math.max(points[hoverIdx].x - 64, PAD.left + 8), width - PAD.right - 136)}
+                      y={Math.max(points[hoverIdx].y - 26, 22)}
+                      fill="#f8fafc"
+                      fontSize="9"
                     >
-                      {tick}
+                      {points[hoverIdx].fullLabel || points[hoverIdx].label}
+                    </text>
+                    <text
+                      x={Math.min(Math.max(points[hoverIdx].x - 64, PAD.left + 8), width - PAD.right - 136)}
+                      y={Math.max(points[hoverIdx].y - 12, 36)}
+                      fill="#fca5a5"
+                      fontSize="10"
+                      fontWeight="bold"
+                    >
+                      {points[hoverIdx].volume} {t('monitoring.intelChartIncidents').toLowerCase()}
                     </text>
                   </g>
-                );
-              })}
+                ) : null}
+              </svg>
 
-              <line
-                x1={PAD.left}
-                y1={PLOT_H - PAD.bottom}
-                x2={width - PAD.right}
-                y2={PLOT_H - PAD.bottom}
-                stroke={axisColor}
-                strokeWidth="1"
-              />
-
-              <path d={areaPath(points)} fill="rgba(198, 40, 40, 0.15)" />
-              <path
-                d={linePath(points)}
-                fill="none"
-                stroke={LINE}
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-
-              {points.map((p, i) => (
-                <circle
-                  key={p.dateKey}
-                  cx={p.x}
-                  cy={p.y}
-                  r={hoverIdx === i ? 6 : 4.5}
-                  fill={LINE}
-                  stroke={dark ? '#1a2332' : '#fff'}
-                  strokeWidth="2"
-                  className="cursor-pointer"
-                  onMouseEnter={() => setHoverIdx(i)}
-                  onMouseLeave={() => setHoverIdx(null)}
-                />
-              ))}
-
-              {hoverIdx != null && points[hoverIdx] ? (
-                <g pointerEvents="none">
-                  <rect
-                    x={Math.min(Math.max(points[hoverIdx].x - 72, PAD.left), width - PAD.right - 144)}
-                    y={Math.max(points[hoverIdx].y - 44, 8)}
-                    width="144"
-                    height="36"
-                    rx="6"
-                    fill="rgba(15, 23, 42, 0.94)"
-                    stroke="rgba(148, 163, 184, 0.35)"
-                  />
-                  <text
-                    x={Math.min(Math.max(points[hoverIdx].x - 64, PAD.left + 8), width - PAD.right - 136)}
-                    y={Math.max(points[hoverIdx].y - 26, 22)}
-                    fill="#f8fafc"
-                    fontSize="9"
+              {allZero ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
+                  <span
+                    className={`rounded-md border px-2.5 py-1 text-[10px] ${
+                      dark
+                        ? 'border-slate-600/50 bg-slate-900/90 text-slate-400'
+                        : 'border-slark-border bg-slark-bg/95 text-slark-muted'
+                    }`}
                   >
-                    {points[hoverIdx].fullLabel || points[hoverIdx].label}
-                  </text>
-                  <text
-                    x={Math.min(Math.max(points[hoverIdx].x - 64, PAD.left + 8), width - PAD.right - 136)}
-                    y={Math.max(points[hoverIdx].y - 12, 36)}
-                    fill="#fca5a5"
-                    fontSize="10"
-                    fontWeight="bold"
-                  >
-                    {points[hoverIdx].volume} {t('monitoring.intelChartIncidents').toLowerCase()}
-                  </text>
-                </g>
+                    {t('monitoring.intelChartEmpty')}
+                  </span>
+                </div>
               ) : null}
-            </svg>
-
-            {allZero ? (
-              <div className="pointer-events-none absolute inset-x-0 top-[38%] flex justify-center px-4">
-                <span
-                  className={`rounded-md border px-2.5 py-1 text-[10px] ${
-                    dark
-                      ? 'border-slate-600/50 bg-slate-900/90 text-slate-400'
-                      : 'border-slark-border bg-slark-bg/95 text-slark-muted'
-                  }`}
-                >
-                  {t('monitoring.intelChartEmpty')}
-                </span>
-              </div>
-            ) : null}
+            </div>
 
             <div
-              className={`grid border-t ${dark ? 'border-slate-600/45' : 'border-slark-border'}`}
+              className={`grid shrink-0 border-t ${dark ? 'border-slate-600/45' : 'border-slark-border'}`}
               style={{
                 height: LABEL_ROW_H,
                 paddingLeft: PAD.left,
@@ -317,7 +343,9 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
                     {show ? (
                       <span
                         className={`max-w-full truncate px-0.5 text-center font-mono leading-none ${
-                          hoverIdx === i ? 'text-[9px] font-semibold text-slate-100' : `text-[8px] ${mutedClass}`
+                          hoverIdx === i
+                            ? 'text-[9px] font-semibold text-slate-100'
+                            : `text-[8px] ${mutedClass}`
                         }`}
                         title={point.fullLabel || point.label}
                       >
@@ -334,7 +362,9 @@ export function ThreatDailyChart({ attacks, variant = 'light', large = false, em
         )}
       </div>
 
-      <p className={`mt-2 shrink-0 text-[9px] leading-snug ${mutedClass}`}>{t('monitoring.intelChartLegend')}</p>
+      <p className={`mt-2 shrink-0 text-[9px] leading-snug ${mutedClass}`}>
+        {t('monitoring.intelChartLegend')}
+      </p>
     </section>
   );
 }

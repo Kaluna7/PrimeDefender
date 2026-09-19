@@ -1,19 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useState } from 'react';
 import { useI18n } from '../../i18n/I18nContext.jsx';
-import { fetchAuthStatus } from '../../services/auth.js';
 import { ApiKeyDisplayModal } from './ApiKeyDisplayModal.jsx';
 import { ApiKeyVerifyModal } from './ApiKeyVerifyModal.jsx';
 import { ModalShell } from '../../components/ui/ModalShell.jsx';
 import { requestApiKeyReveal, verifyApiKeyReveal } from '../../services/apiKey.js';
 
 /**
- * @param {{ user: { subscription?: { active?: boolean, planId?: string, expiresAt?: number, labelEn?: string, labelId?: string }, apiKey?: { prefix?: string, hasKey?: boolean } } | null, compact?: boolean, onRefresh?: () => void | Promise<void> }} props
+ * @param {{ user: { apiKey?: { prefix?: string, hasKey?: boolean } } | null, compact?: boolean }} props
  */
-export function SubscriptionBillingCard({ user, compact = false, onRefresh }) {
-  const { t, locale } = useI18n();
-  const sub = user?.subscription;
-  const active = sub?.active;
+export function SubscriptionBillingCard({ user, compact = false }) {
+  const { t } = useI18n();
   const hasKey = Boolean(user?.apiKey?.hasKey || user?.apiKey?.prefix);
   const maskedKey = user?.apiKey?.prefix || 'pd_••••••••••••';
 
@@ -28,26 +24,6 @@ export function SubscriptionBillingCard({ user, compact = false, onRefresh }) {
   const [keyWasReset, setKeyWasReset] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    if (!active || hasKey) return undefined;
-    let cancelled = false;
-    const refresh = async () => {
-      if (onRefresh) {
-        await onRefresh();
-        return;
-      }
-      const auth = await fetchAuthStatus();
-      if (!cancelled && auth.ok) {
-        window.dispatchEvent(new Event('slark-auth-change'));
-      }
-    };
-    const id = setTimeout(refresh, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [active, hasKey, onRefresh]);
-
   const verifyErrorMessage = useCallback(
     (code) => {
       const map = {
@@ -56,7 +32,7 @@ export function SubscriptionBillingCard({ user, compact = false, onRefresh }) {
         challenge_mismatch: t('account.verifyApiKeyExpired'),
         smtp_not_configured: t('account.verifyApiKeyEmailFailed'),
         email_send_failed: t('account.verifyApiKeyEmailFailed'),
-        subscription_inactive: t('account.noSubscription'),
+        user_not_found: t('account.verifyApiKeyNotSignedIn'),
         api_key_missing: t('account.keyLoading'),
         not_authenticated: t('account.verifyApiKeyNotSignedIn'),
         endpoint_not_found: t('account.verifyApiKeyServerOutdated'),
@@ -130,27 +106,6 @@ export function SubscriptionBillingCard({ user, compact = false, onRefresh }) {
     await sendVerificationCode();
   };
 
-  if (!active || !sub) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-600/30 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-900 dark:text-amber-200">{t('account.noSubscription')}</p>
-        <Link
-          to="/purchase"
-          className="mt-3 inline-block text-sm font-semibold text-slark-primary underline-offset-2 hover:underline"
-        >
-          {t('account.buySubscription')}
-        </Link>
-      </div>
-    );
-  }
-
-  const planLabel = locale === 'id' ? sub.labelId || sub.planId : sub.labelEn || sub.planId;
-  const expiresLabel = new Date(sub.expiresAt).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-
   return (
     <>
       <div
@@ -163,55 +118,12 @@ export function SubscriptionBillingCard({ user, compact = false, onRefresh }) {
             compact ? 'text-[10px] tracking-[0.16em]' : 'text-xs tracking-[0.2em]'
           }`}
         >
-          {t('account.subscriptionTitle')}
+          {t('account.apiKeyLabel')}
         </h2>
 
         <dl className={`grid ${compact ? 'mt-3 gap-2 text-sm' : 'mt-4 gap-3'}`}>
-          <div
-            className={`flex flex-wrap justify-between gap-2 border-b border-slark-border ${
-              compact ? 'pb-2' : 'pb-3'
-            }`}
-          >
-            <dt
-              className={`font-semibold uppercase tracking-wider text-slark-muted ${
-                compact ? 'text-[10px]' : 'text-xs'
-              }`}
-            >
-              {t('account.planLabel')}
-            </dt>
-            <dd className={`font-semibold text-slark-text dark:text-white ${compact ? 'text-sm' : ''}`}>
-              {planLabel}
-            </dd>
-          </div>
-          <div
-            className={`flex flex-wrap justify-between gap-2 border-b border-slark-border ${
-              compact ? 'pb-2' : 'pb-3'
-            }`}
-          >
-            <dt
-              className={`font-semibold uppercase tracking-wider text-slark-muted ${
-                compact ? 'text-[10px]' : 'text-xs'
-              }`}
-            >
-              {t('account.expiresLabel')}
-            </dt>
-            <dd
-              className={`font-mono text-slark-text dark:text-white/95 ${
-                compact ? 'text-xs' : 'text-sm'
-              }`}
-            >
-              {expiresLabel}
-            </dd>
-          </div>
           <div>
-            <dt
-              className={`font-semibold uppercase tracking-wider text-slark-muted ${
-                compact ? 'text-[10px]' : 'text-xs'
-              }`}
-            >
-              {t('account.apiKeyLabel')}
-            </dt>
-            <dd className={compact ? 'mt-1.5' : 'mt-2'}>
+            <dd className="mt-0">
               {hasKey ? (
                 <>
                   <code

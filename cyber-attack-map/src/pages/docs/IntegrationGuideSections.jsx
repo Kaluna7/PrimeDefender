@@ -18,7 +18,7 @@ import {
  * @param {IntegrationGuideVariant} [props.variant]
  * @param {import('./integrationGuide.js').IntegrationStack} [props.stack]
  * @param {(stack: import('./integrationGuide.js').IntegrationStack) => void} [props.onStackChange]
- * @param {'en' | 'id'} props.locale
+ * @param {'en' | 'id'} [props.locale]
  * @param {boolean} [props.theme]
  * @param {string} [props.className]
  */
@@ -31,7 +31,7 @@ export function IntegrationGuideSections({
   hideStackPicker = false,
   className = '',
 }) {
-  const doc = integrationGuide[locale] ?? integrationGuide.en;
+  const doc = integrationGuide.id;
   const [internalStack, setInternalStack] = useState(
     /** @type {import('./integrationGuide.js').IntegrationStack} */ ('python'),
   );

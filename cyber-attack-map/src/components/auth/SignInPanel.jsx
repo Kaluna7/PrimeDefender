@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import {
   getGoogleSignInUrl,
@@ -6,8 +7,15 @@ import {
   registerWithEmail,
   verifyEmailCode,
 } from '../../services/auth.js';
+import {
+  completeForgotPassword,
+  requestForgotPasswordCode,
+  verifyForgotPasswordCode,
+} from '../../services/passwordChange.js';
 
-/** @typedef {'signup' | 'login' | 'verify'} AuthMode */
+/** @typedef {'signup' | 'login' | 'verify' | 'forgot-email' | 'forgot-code' | 'forgot-password' | 'forgot-done'} AuthMode */
+
+const PASSWORD_MIN_LEN = 8;
 
 function OrDivider({ label }) {
   return (
@@ -54,6 +62,59 @@ function Field({ label, children }) {
   );
 }
 
+/**
+ * @param {{
+ *   label: string,
+ *   value: string,
+ *   onChange: (value: string) => void,
+ *   placeholder?: string,
+ *   autoComplete?: string,
+ *   disabled?: boolean,
+ *   required?: boolean,
+ *   showLabel: string,
+ *   hideLabel: string,
+ * }} props
+ */
+function PasswordField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete = 'current-password',
+  disabled = false,
+  required = false,
+  showLabel,
+  hideLabel,
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <Field label={label}>
+      <div className="relative">
+        <input
+          type={visible ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          required={required}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className="auth-input auth-input--password"
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          className="auth-password-toggle"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? hideLabel : showLabel}
+          tabIndex={-1}
+        >
+          {visible ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+        </button>
+      </div>
+    </Field>
+  );
+}
+
 function FormInlineFeedback({ error, message }) {
   if (!error && !message) return null;
 
@@ -97,6 +158,8 @@ export function SignInPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [forgotEmailMasked, setForgotEmailMasked] = useState('');
+  const forgotChallengeRef = useRef('');
 
   const googleUrl = useMemo(() => getGoogleSignInUrl(), []);
 
@@ -119,24 +182,35 @@ export function SignInPanel({
       email_send_failed: t('auth.errEmailSend'),
       google_exchange_failed: t('auth.errGoogleExchange'),
       invalid_state: t('auth.errInvalidState'),
+      network_error: t('auth.errNetwork'),
+      google_account: t('auth.errGoogleAccount'),
     };
     setError(map[initialError] || t('auth.errGeneric'));
     setMode(defaultMode);
   }, [initialError, t, defaultMode]);
 
-  const mapApiError = (code) => {
+  const mapApiError = (errCode) => {
     const map = {
       email_taken: t('auth.errEmailTaken'),
       invalid_credentials: t('auth.errInvalidCredentials'),
+      google_account: t('auth.errGoogleAccount'),
+      network_error: t('auth.errNetwork'),
       password_too_short: t('auth.errPasswordTooShort'),
+      password_mismatch: t('auth.errPasswordMismatch'),
       invalid_email: t('auth.errInvalidEmail'),
+      user_not_found: t('auth.errUserNotFound'),
       smtp_not_configured: t('auth.errSmtpNotConfigured'),
       email_send_failed: t('auth.errEmailSend'),
       mongo_disabled: t('auth.errGeneric'),
       invalid_code: t('auth.errInvalidCode'),
       challenge_expired: t('auth.errChallengeExpired'),
+      challenge_mismatch: t('auth.errChallengeExpired'),
+      code_not_verified: t('auth.errChallengeExpired'),
+      send_failed: t('auth.errEmailSend'),
+      verify_failed: t('auth.errGeneric'),
+      complete_failed: t('auth.errGeneric'),
     };
-    return map[code] || t('auth.errGeneric');
+    return map[errCode] || t('auth.errGeneric');
   };
 
   const goToVerify = (nextChallengeId, nextEmail) => {
@@ -147,11 +221,41 @@ export function SignInPanel({
     setMessage(t('auth.verifyEmailSent'));
   };
 
+  const resetForgotFields = () => {
+    setCode('');
+    setPassword('');
+    setConfirmPassword('');
+    setForgotEmailMasked('');
+    forgotChallengeRef.current = '';
+  };
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError('');
+    setMessage('');
+    setPassword('');
+    setConfirmPassword('');
+    if (!String(next).startsWith('forgot')) {
+      setCode('');
+    }
+  };
+
+  const openForgot = () => {
+    setError('');
+    setMessage('');
+    setCode('');
+    setPassword('');
+    setConfirmPassword('');
+    setForgotEmailMasked('');
+    forgotChallengeRef.current = '';
+    setMode('forgot-email');
+  };
+
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError('');
     setMessage('');
-    if (password.length < 8) {
+    if (password.length < PASSWORD_MIN_LEN) {
       setError(t('auth.errPasswordTooShort'));
       return;
     }
@@ -179,10 +283,6 @@ export function SignInPanel({
     const result = await loginWithEmail({ email: email.trim(), password });
     setBusy(false);
     if (!result.ok) {
-      if (result.error === 'verification_required' && result.challengeId) {
-        goToVerify(result.challengeId, result.email);
-        return;
-      }
       setError(mapApiError(result.error));
       return;
     }
@@ -205,27 +305,119 @@ export function SignInPanel({
     setTimeout(() => onSuccess?.(), 600);
   };
 
-  const switchMode = (next) => {
-    setMode(next);
+  const handleForgotSend = async (e) => {
+    e.preventDefault();
     setError('');
     setMessage('');
+    const normalized = email.trim().toLowerCase();
+    if (!normalized.includes('@')) {
+      setError(t('auth.errInvalidEmail'));
+      return;
+    }
+    setBusy(true);
+    const result = await requestForgotPasswordCode({ email: normalized });
+    setBusy(false);
+    if (!result.ok) {
+      setError(mapApiError(result.error));
+      return;
+    }
+    forgotChallengeRef.current = result.challengeId || '';
+    setForgotEmailMasked(result.emailMasked || normalized);
+    setCode('');
+    setMode('forgot-code');
+  };
+
+  const handleForgotResend = async () => {
+    setError('');
+    setBusy(true);
+    const result = await requestForgotPasswordCode({ email: email.trim().toLowerCase() });
+    setBusy(false);
+    if (!result.ok) {
+      setError(mapApiError(result.error));
+      return;
+    }
+    forgotChallengeRef.current = result.challengeId || '';
+    setForgotEmailMasked(result.emailMasked || email.trim());
+    setMessage(t('auth.verifyEmailSent'));
+  };
+
+  const handleForgotVerify = async (e) => {
+    e.preventDefault();
+    if (code.trim().length < 6 || !forgotChallengeRef.current) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    const result = await verifyForgotPasswordCode({
+      email: email.trim().toLowerCase(),
+      challengeId: forgotChallengeRef.current,
+      code: code.trim(),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(mapApiError(result.error));
+      return;
+    }
     setPassword('');
     setConfirmPassword('');
+    setMode('forgot-password');
+  };
+
+  const handleForgotComplete = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    if (password.length < PASSWORD_MIN_LEN) {
+      setError(t('auth.errPasswordTooShort'));
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError(t('auth.errPasswordMismatch'));
+      return;
+    }
+    setBusy(true);
+    const result = await completeForgotPassword({
+      email: email.trim().toLowerCase(),
+      challengeId: forgotChallengeRef.current,
+      password,
+      confirmPassword,
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(mapApiError(result.error));
+      return;
+    }
+    setMode('forgot-done');
   };
 
   const title =
     mode === 'verify'
       ? t('auth.verifyTitle')
-      : mode === 'login'
-        ? t('auth.loginTitle')
-        : t('auth.signUpTitle');
+      : mode === 'forgot-email'
+        ? t('auth.forgotTitle')
+        : mode === 'forgot-code'
+          ? t('auth.forgotCodeTitle')
+          : mode === 'forgot-password'
+            ? t('auth.forgotPasswordTitle')
+            : mode === 'forgot-done'
+              ? t('auth.forgotDoneTitle')
+              : mode === 'login'
+                ? t('auth.loginTitle')
+                : t('auth.signUpTitle');
 
   const subtitle =
     mode === 'verify'
       ? t('auth.verifySubtitle')
-      : mode === 'login'
-        ? t('auth.loginSubtitle')
-        : t('auth.signUpSubtitle');
+      : mode === 'forgot-email'
+        ? t('auth.forgotSubtitle')
+        : mode === 'forgot-code'
+          ? t('auth.forgotCodeSubtitle')
+          : mode === 'forgot-password'
+            ? t('auth.forgotPasswordSubtitle')
+            : mode === 'forgot-done'
+              ? t('auth.forgotDoneBody')
+              : mode === 'login'
+                ? t('auth.loginSubtitle')
+                : t('auth.signUpSubtitle');
 
   return (
     <div className={className}>
@@ -236,7 +428,7 @@ export function SignInPanel({
       <p className="auth-panel-subtitle">{subtitle}</p>
 
       {mode === 'verify' ? (
-        <form className="auth-form" onSubmit={handleVerify}>
+        <form className="auth-form motion-safe:animate-[verifyStepIn_240ms_ease-out]" onSubmit={handleVerify}>
           {verifyEmail ? (
             <p className="auth-verify-hint">
               {t('auth.codeSentTo')}{' '}
@@ -268,15 +460,143 @@ export function SignInPanel({
             {busy ? t('auth.verifying') : t('auth.verifyButton')}
           </button>
           <p className="auth-back-link">
-            <button
-              type="button"
-              className="auth-link"
-              onClick={() => switchMode(defaultMode)}
-            >
+            <button type="button" className="auth-link" onClick={() => switchMode(defaultMode)}>
               {t('auth.backToAuth')}
             </button>
           </p>
         </form>
+      ) : mode === 'forgot-email' ? (
+        <form className="auth-form motion-safe:animate-[verifyStepIn_240ms_ease-out]" onSubmit={handleForgotSend}>
+          <Field label={t('auth.emailLabel')}>
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError('');
+              }}
+              disabled={busy}
+              className="auth-input"
+              placeholder="you@gmail.com"
+            />
+          </Field>
+          <FormInlineFeedback error={error} message={message} />
+          <button type="submit" disabled={busy || !email.trim()} className="auth-btn-primary">
+            {busy ? t('auth.forgotSending') : t('auth.forgotContinue')}
+          </button>
+          <p className="auth-back-link">
+            <button
+              type="button"
+              className="auth-link"
+              onClick={() => {
+                resetForgotFields();
+                switchMode('login');
+              }}
+            >
+              {t('auth.forgotBackToLogin')}
+            </button>
+          </p>
+        </form>
+      ) : mode === 'forgot-code' ? (
+        <form className="auth-form motion-safe:animate-[verifyStepIn_240ms_ease-out]" onSubmit={handleForgotVerify}>
+          <p className="auth-verify-hint">
+            {t('auth.forgotCodeSentTo')}{' '}
+            <span className="auth-verify-email">{forgotEmailMasked || email}</span>
+          </p>
+          <Field label={t('auth.codeLabel')}>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                if (error) setError('');
+              }}
+              disabled={busy}
+              className="auth-input auth-input--code"
+              placeholder="000000"
+            />
+          </Field>
+          <FormInlineFeedback error={error} message={message} />
+          <button type="submit" disabled={code.length < 6 || busy} className="auth-btn-primary">
+            {busy ? t('auth.forgotVerifying') : t('auth.forgotVerifyButton')}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={handleForgotResend}
+            className="auth-link mt-3 text-left text-xs font-semibold"
+          >
+            {t('auth.forgotResend')}
+          </button>
+          <p className="auth-back-link">
+            <button type="button" className="auth-link" onClick={() => switchMode('forgot-email')}>
+              {t('auth.backToAuth')}
+            </button>
+          </p>
+        </form>
+      ) : mode === 'forgot-password' ? (
+        <form className="auth-form motion-safe:animate-[verifyStepIn_240ms_ease-out]" onSubmit={handleForgotComplete}>
+          <PasswordField
+            label={t('auth.passwordLabel')}
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              if (error) setError('');
+            }}
+            placeholder={t('auth.passwordPlaceholder')}
+            autoComplete="new-password"
+            disabled={busy}
+            required
+            showLabel={t('auth.showPassword')}
+            hideLabel={t('auth.hidePassword')}
+          />
+          <PasswordField
+            label={t('auth.confirmPasswordLabel')}
+            value={confirmPassword}
+            onChange={(value) => {
+              setConfirmPassword(value);
+              if (error) setError('');
+            }}
+            placeholder={t('auth.confirmPasswordPlaceholder')}
+            autoComplete="new-password"
+            disabled={busy}
+            required
+            showLabel={t('auth.showPassword')}
+            hideLabel={t('auth.hidePassword')}
+          />
+          <FormInlineFeedback error={error} message={message} />
+          <button
+            type="submit"
+            disabled={
+              busy ||
+              password.length < PASSWORD_MIN_LEN ||
+              confirmPassword.length < PASSWORD_MIN_LEN ||
+              password !== confirmPassword
+            }
+            className="auth-btn-primary"
+          >
+            {busy ? t('auth.forgotSaving') : t('auth.forgotSave')}
+          </button>
+        </form>
+      ) : mode === 'forgot-done' ? (
+        <div className="auth-form motion-safe:animate-[verifyStepIn_240ms_ease-out]">
+          <p className="auth-inline-success">{t('auth.forgotDoneBody')}</p>
+          <button
+            type="button"
+            className="auth-btn-primary"
+            onClick={() => {
+              resetForgotFields();
+              switchMode('login');
+            }}
+          >
+            {t('auth.forgotBackToLogin')}
+          </button>
+        </div>
       ) : mode === 'signup' ? (
         <>
           <form className="auth-form" onSubmit={handleSignUp}>
@@ -292,37 +612,37 @@ export function SignInPanel({
                 }}
                 disabled={busy}
                 className="auth-input"
-                placeholder="you@company.com"
+                placeholder="you@gmail.com"
               />
             </Field>
-            <Field label={t('auth.passwordLabel')}>
-              <input
-                type="password"
-                autoComplete="new-password"
-                required
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (error) setError('');
-                }}
-                disabled={busy}
-                className="auth-input"
-              />
-            </Field>
-            <Field label={t('auth.confirmPasswordLabel')}>
-              <input
-                type="password"
-                autoComplete="new-password"
-                required
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (error) setError('');
-                }}
-                disabled={busy}
-                className="auth-input"
-              />
-            </Field>
+            <PasswordField
+              label={t('auth.passwordLabel')}
+              value={password}
+              onChange={(value) => {
+                setPassword(value);
+                if (error) setError('');
+              }}
+              placeholder={t('auth.passwordPlaceholder')}
+              autoComplete="new-password"
+              disabled={busy}
+              required
+              showLabel={t('auth.showPassword')}
+              hideLabel={t('auth.hidePassword')}
+            />
+            <PasswordField
+              label={t('auth.confirmPasswordLabel')}
+              value={confirmPassword}
+              onChange={(value) => {
+                setConfirmPassword(value);
+                if (error) setError('');
+              }}
+              placeholder={t('auth.confirmPasswordPlaceholder')}
+              autoComplete="new-password"
+              disabled={busy}
+              required
+              showLabel={t('auth.showPassword')}
+              hideLabel={t('auth.hidePassword')}
+            />
             <FormInlineFeedback error={error} message={message} />
             <button type="submit" disabled={busy} className="auth-btn-primary">
               {busy ? t('auth.signingUp') : t('auth.signUpButton')}
@@ -354,23 +674,28 @@ export function SignInPanel({
                 }}
                 disabled={busy}
                 className="auth-input"
-                placeholder="you@company.com"
+                placeholder="you@gmail.com"
               />
             </Field>
-            <Field label={t('auth.passwordLabel')}>
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (error) setError('');
-                }}
-                disabled={busy}
-                className="auth-input"
-              />
-            </Field>
+            <PasswordField
+              label={t('auth.passwordLabel')}
+              value={password}
+              onChange={(value) => {
+                setPassword(value);
+                if (error) setError('');
+              }}
+              placeholder={t('auth.passwordPlaceholder')}
+              autoComplete="current-password"
+              disabled={busy}
+              required
+              showLabel={t('auth.showPassword')}
+              hideLabel={t('auth.hidePassword')}
+            />
+            <div className="auth-forgot-row">
+              <button type="button" className="auth-link" onClick={openForgot}>
+                {t('auth.forgotLink')}
+              </button>
+            </div>
             <FormInlineFeedback error={error} message={message} />
             <button type="submit" disabled={busy} className="auth-btn-primary">
               {busy ? t('auth.loggingIn') : t('auth.loginButton')}

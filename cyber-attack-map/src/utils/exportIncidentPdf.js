@@ -168,8 +168,8 @@ export async function exportIncidentPdf({ attack, labels, logText, readout, acti
       pdf.setFont('courier', 'normal');
       pdf.setFontSize(8.5);
       pdf.setTextColor(31, 41, 55);
-      const lines = pdf.splitTextToSize(String(value || '—'), contentWidth - 130);
-      pdf.text(lines[0] || '—', MARGIN + 120, rowY);
+      const lines = pdf.splitTextToSize(String(value || '-'), contentWidth - 130);
+      pdf.text(lines[0] || '-', MARGIN + 120, rowY);
       rowY += rowH;
     }
     y += sectionH - 6;
@@ -185,7 +185,7 @@ export async function exportIncidentPdf({ attack, labels, logText, readout, acti
 
     pdf.setFont('courier', 'normal');
     pdf.setFontSize(7.5);
-    const lines = pdf.splitTextToSize(String(text || '—'), contentWidth - 24);
+    const lines = pdf.splitTextToSize(String(text || '-'), contentWidth - 24);
     const padX = MARGIN + 12;
     const lineH = 10;
     let i = 0;
@@ -258,6 +258,6 @@ export async function exportIncidentPdf({ attack, labels, logText, readout, acti
     drawPageChrome(pdf, pageWidth, pageHeight, i, totalPages, logoDataUrl, labels);
   }
 
-  const safeId = String(attack.requestId || attack.incidentId || attack.id || 'incident').replace(/[^\w.-]+/g, '_');
-  pdf.save(`slark-incident-${safeId}.pdf`);
+  const safeId = String(attack.requestId || attack.id || 'incident').replace(/[^\w.-]+/g, '_');
+  pdf.save(`jagra-baya-maya-incident-${safeId}.pdf`);
 }

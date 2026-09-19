@@ -4,7 +4,7 @@ import { searchGuide } from './integrationGuide.js';
 
 /**
  * @param {object} props
- * @param {import('./integrationGuide.js').integrationGuide.en} props.doc
+ * @param {import('./integrationGuide.js').integrationGuide.id} props.doc
  * @param {import('./integrationGuide.js').IntegrationStack} props.stack
  * @param {boolean} props.menuOpen
  * @param {() => void} props.onMenuToggle

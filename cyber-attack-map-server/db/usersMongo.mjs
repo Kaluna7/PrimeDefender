@@ -1,24 +1,13 @@
 import { getNamedCollection, mongoDisabled } from './mongo.mjs';
-import { getPlan } from '../payment/plans.mjs';
 import { ensureUserApiKey } from '../auth/userApiKeys.mjs';
 
 let userIndexes = false;
-let orderIndexes = false;
 
 async function usersColl() {
   const coll = await getNamedCollection('users');
   if (!coll || userIndexes) return coll;
   await coll.createIndex({ email: 1 }, { unique: true });
   userIndexes = true;
-  return coll;
-}
-
-async function ordersColl() {
-  const coll = await getNamedCollection('orders');
-  if (!coll || orderIndexes) return coll;
-  await coll.createIndex({ orderId: 1 }, { unique: true });
-  await coll.createIndex({ email: 1, createdAt: -1 });
-  orderIndexes = true;
   return coll;
 }
 
@@ -43,13 +32,13 @@ export async function upsertUserByEmail(profile) {
         picture: profile.picture || null,
         updatedAt: now,
       },
-      $setOnInsert: { email, createdAt: now, subscription: null },
+      $setOnInsert: { email, createdAt: now },
     },
     { upsert: true, returnDocument: 'after' }
   );
   const doc = result;
   if (!doc) return null;
-  return formatUser(doc);
+  return grantFreeApiAccess(email);
 }
 
 export async function getUserByEmail(email) {
@@ -93,8 +82,8 @@ export async function createPasswordUser({ email, passwordHash, name }) {
       picture: null,
       createdAt: now,
       updatedAt: now,
-      subscription: null,
     });
+    await grantFreeApiAccess(normalized);
     return { ok: true, email: normalized, name: name || normalized.split('@')[0] };
   } catch (e) {
     if (e?.code === 11000) return { ok: false, error: 'email_taken' };
@@ -133,6 +122,42 @@ export async function migrateLegacyVerifiedUsers() {
       { $set: { emailVerifiedAt: doc.updatedAt || doc.createdAt || now } }
     );
   }
+}
+
+/**
+ * Pastikan user mempunyai API key.
+ * @param {string} email
+ */
+export async function grantFreeApiAccess(email) {
+  const coll = await usersColl();
+  if (!coll) return null;
+  const normalized = String(email).toLowerCase().trim();
+  if (!normalized) return null;
+
+  const doc = await coll.findOne({ email: normalized });
+  if (!doc) return null;
+
+  await ensureUserApiKey(normalized);
+  const updated = await coll.findOne({ email: normalized });
+  return updated ? formatUser(updated) : null;
+}
+
+/**
+ * Migrasi sekali: buat API key untuk user lama yang belum memilikinya.
+ */
+export async function migrateGrantFreeApiAccess() {
+  const coll = await usersColl();
+  if (!coll) return { updated: 0 };
+  let updated = 0;
+  const cursor = coll.find({});
+  for await (const doc of cursor) {
+    if (!doc?.email) continue;
+    const hasKey = Boolean(doc.apiKey?.hash || doc.apiKey?.plain);
+    if (hasKey) continue;
+    await grantFreeApiAccess(doc.email);
+    updated += 1;
+  }
+  return { updated };
 }
 
 export async function markEmailVerified(email) {
@@ -177,157 +202,11 @@ function formatApiKeyMeta(doc) {
 }
 
 function formatUser(doc) {
-  const sub = doc.subscription;
-  const active =
-    sub &&
-    typeof sub.expiresAt === 'number' &&
-    sub.expiresAt > Date.now() &&
-    (sub.status === 'active' || !sub.status);
-  const plan = sub?.planId ? getPlan(sub.planId) : null;
   return {
     id: String(doc._id),
     email: doc.email,
     name: doc.name,
     picture: doc.picture || undefined,
-    subscription: sub
-      ? {
-          planId: sub.planId,
-          expiresAt: sub.expiresAt,
-          active,
-          orderId: sub.orderId,
-          months: plan?.months,
-          labelEn: plan?.labelEn,
-          labelId: plan?.labelId,
-        }
-      : null,
-    apiKey: active ? formatApiKeyMeta(doc) : null,
-  };
-}
-
-/**
- * @param {{ orderId: string, email: string, planId: string, amount: number }} order
- */
-export async function createPendingOrder(order) {
-  const coll = await ordersColl();
-  if (!coll) return { ok: false, error: 'mongo_disabled' };
-  const plan = getPlan(order.planId);
-  if (!plan) return { ok: false, error: 'invalid_plan' };
-  try {
-    await coll.insertOne({
-      orderId: order.orderId,
-      email: order.email.toLowerCase(),
-      planId: order.planId,
-      amount: order.amount,
-      months: plan.months,
-      status: 'pending',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    return { ok: true };
-  } catch (e) {
-    if (e?.code === 11000) return { ok: false, error: 'duplicate_order' };
-    throw e;
-  }
-}
-
-export async function findOrderByOrderId(orderId) {
-  const coll = await ordersColl();
-  if (!coll) return null;
-  return coll.findOne({ orderId });
-}
-
-export async function findPendingOrdersByEmail(email) {
-  const coll = await ordersColl();
-  if (!coll) return [];
-  return coll
-    .find({ email: String(email).toLowerCase().trim(), status: 'pending' })
-    .sort({ createdAt: -1 })
-    .limit(20)
-    .toArray();
-}
-
-/**
- * @param {string} orderId
- * @param {{ status: string, transactionId?: string, paymentType?: string }} meta
- */
-export async function updateOrderStatus(orderId, meta) {
-  const coll = await ordersColl();
-  if (!coll) return null;
-  return coll.findOneAndUpdate(
-    { orderId },
-    {
-      $set: {
-        status: meta.status,
-        midtransTransactionId: meta.transactionId || null,
-        paymentType: meta.paymentType || null,
-        updatedAt: Date.now(),
-        ...(meta.status === 'paid' ? { paidAt: Date.now() } : {}),
-      },
-    },
-    { returnDocument: 'after' }
-  );
-}
-
-/**
- * Activate or extend subscription after successful payment.
- */
-export async function activateSubscriptionForOrder(orderId) {
-  const order = await findOrderByOrderId(orderId);
-  if (!order) return { ok: false, error: 'order_not_found' };
-  if (order.status === 'paid') {
-    const keyInfo = await ensureUserApiKey(order.email);
-    const users = await usersColl();
-    const existing = users ? await users.findOne({ email: order.email }) : null;
-    return {
-      ok: true,
-      already: true,
-      expiresAt: existing?.subscription?.expiresAt,
-      planId: order.planId,
-      apiKey: keyInfo?.apiKey,
-    };
-  }
-  const plan = getPlan(order.planId);
-  if (!plan) return { ok: false, error: 'invalid_plan' };
-
-  const users = await usersColl();
-  if (!users) return { ok: false, error: 'mongo_disabled' };
-
-  const email = order.email;
-  const user = await users.findOne({ email });
-  const now = Date.now();
-  const base = Math.max(now, user?.subscription?.expiresAt || 0);
-  const expiresAt = base + plan.months * 30 * 24 * 60 * 60 * 1000;
-
-  await users.updateOne(
-    { email },
-    {
-      $set: {
-        subscription: {
-          planId: order.planId,
-          expiresAt,
-          status: 'active',
-          orderId,
-          activatedAt: now,
-        },
-        updatedAt: now,
-      },
-      $setOnInsert: {
-        email,
-        name: email,
-        createdAt: now,
-      },
-    },
-    { upsert: true }
-  );
-
-  await updateOrderStatus(orderId, { status: 'paid' });
-  const keyInfo = await ensureUserApiKey(email);
-  return {
-    ok: true,
-    expiresAt,
-    planId: order.planId,
-    apiKey: keyInfo?.apiKey,
-    apiKeyPrefix: keyInfo?.prefix,
-    userName: user?.name || email,
+    apiKey: formatApiKeyMeta(doc),
   };
 }

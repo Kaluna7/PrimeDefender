@@ -7,14 +7,14 @@ import { deriveProtectionBucket } from '../../utils/deriveProtectionBucket.js';
 import { formatIncidentWhen } from '../../utils/formatIncidentTime.js';
 
 function fmtCoord(lat, lon) {
-  if (typeof lat !== 'number' || typeof lon !== 'number') return '—';
+  if (typeof lat !== 'number' || typeof lon !== 'number') return '-';
   const ns = lat >= 0 ? 'N' : 'S';
   const ew = lon >= 0 ? 'E' : 'W';
   return `${Math.abs(lat).toFixed(4)}°${ns}  ${Math.abs(lon).toFixed(4)}°${ew}`;
 }
 
 function dash(s) {
-  return s && String(s).trim() ? s : '—';
+  return s && String(s).trim() ? s : '-';
 }
 
 function detectionLabel(attack, t) {

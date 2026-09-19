@@ -8,14 +8,12 @@ import siteIcon from '../../../assets/images/icon.webp';
 const EXPLORE_LINKS = [
   { href: '#features', labelKey: 'home.sectionFeatures' },
   { href: '#flow', labelKey: 'home.sectionFlow' },
-  { href: '#pricing', labelKey: 'home.sectionPricing' },
   { href: '#faq', labelKey: 'home.sectionFaq' },
 ];
 
 const RESOURCE_LINKS = [
   { to: '/docs', labelKey: 'home.introCtaSecondary' },
-  { to: '/purchase', labelKey: 'home.ctaApiPurchase' },
-  { to: '/about', labelKey: 'nav.about' },
+  { to: '/api-key', labelKey: 'home.ctaApiPurchase' },
 ];
 
 function FooterColumn({ title, children, className = '' }) {

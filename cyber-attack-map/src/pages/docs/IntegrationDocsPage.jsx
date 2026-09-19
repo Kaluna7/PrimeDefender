@@ -13,7 +13,7 @@ function parseDocsStack(value) {
 
 export function IntegrationDocsPage() {
   const { locale, t } = useI18n();
-  const doc = integrationGuide[locale] || integrationGuide.en;
+  const doc = integrationGuide.id;
   const [searchParams, setSearchParams] = useSearchParams();
   const [stack, setStack] = useState(() => parseDocsStack(searchParams.get('stack')));
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,7 +37,7 @@ export function IntegrationDocsPage() {
   };
 
   useEffect(() => {
-    document.title = `${t('brand.name')} – ${t('nav.docs')}`;
+    document.title = `${t('brand.name')} | ${t('nav.docs')}`;
   }, [t, locale]);
 
   useEffect(() => {

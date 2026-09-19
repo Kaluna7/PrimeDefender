@@ -490,8 +490,8 @@ export function WhyDefenseSection({
 
     function scrollLen() {
       const vh = scrollerEl.clientHeight || window.innerHeight;
-      const introPad = vh * 0.4;
-      return introPad + (isMobile ? vh * (1.8 + n * 0.85) : vh * (2.1 + n * 0.95));
+      const introPad = vh * 0.55;
+      return introPad + (isMobile ? vh * (2.4 + n * 1.05) : vh * (2.8 + n * 1.2));
     }
 
     function applyFrame(progress) {
@@ -562,7 +562,7 @@ export function WhyDefenseSection({
         scroller: scrollerEl,
         start: 'top top',
         end: 'bottom bottom',
-        scrub: false,
+        scrub: 1,
         onUpdate: (self) => applyFrame(self.progress),
         onEnter: (self) => applyFrame(self.progress),
         onEnterBack: (self) => applyFrame(self.progress),

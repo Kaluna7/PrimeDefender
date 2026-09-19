@@ -27,25 +27,36 @@ function pruneChallenges() {
   }
 }
 
-async function sendPasswordChangeCodeEmail({ toEmail, toName, code }) {
+async function sendPasswordCodeEmail({ toEmail, toName, code, purpose = 'reset' }) {
   if (!smtpConfigured()) {
     return { ok: false, error: 'smtp_not_configured' };
   }
 
+  const isSetup = purpose === 'setup';
+  const headline = isSetup
+    ? 'Your verification code to complete your Jagra Baya Maya account:'
+    : 'Your verification code to reset your account password:';
+  const footer = isSetup
+    ? 'Kode verifikasi untuk melengkapi akun Anda setelah masuk dengan Google. Buat kata sandi agar Anda juga bisa masuk dengan email. Berlaku 10 menit. Abaikan email ini jika Anda tidak meminta.'
+    : 'Kode verifikasi untuk mengatur ulang kata sandi akun Anda. Berlaku 10 menit. Abaikan email ini jika Anda tidak meminta.';
+  const subject = isSetup
+    ? 'Jagra Baya Maya — complete your account'
+    : 'Jagra Baya Maya — password reset verification';
+
   const html = `
     <div style="font-family:system-ui,sans-serif;background:#0F172A;color:#F8FAFC;padding:24px">
-      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Slark</h1>
+      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Jagra Baya Maya</h1>
       <p>Hi ${toName || 'there'},</p>
-      <p>Your verification code to change your account password:</p>
+      <p>${headline}</p>
       <p style="font-size:28px;letter-spacing:0.35em;font-weight:700;color:#C62828;margin:20px 0">${code}</p>
-      <p style="color:#94a3b8;font-size:13px">Kode verifikasi untuk mengubah kata sandi akun Anda. Berlaku 10 menit. Abaikan email ini jika Anda tidak meminta.</p>
+      <p style="color:#94a3b8;font-size:13px">${footer}</p>
     </div>
   `.trim();
 
   return sendSmtpEmail({
     toEmail,
     toName,
-    subject: 'Slark — password change verification',
+    subject,
     html,
   });
 }
@@ -58,13 +69,14 @@ function maskEmail(email) {
 }
 
 /**
- * @param {{ email: string, name?: string }} input
+ * @param {{ email: string, name?: string, purpose?: 'setup' | 'reset' }} input
  */
-export async function startPasswordChangeChallenge({ email, name }) {
+export async function startPasswordChangeChallenge({ email, name, purpose = 'reset' }) {
   const normalized = String(email).toLowerCase().trim();
   const user = await getUserByEmail(normalized);
   if (!user) return { ok: false, error: 'user_not_found' };
 
+  const safePurpose = purpose === 'setup' ? 'setup' : 'reset';
   const codeOtp = generateOtp();
   const challengeId = randomId();
   pruneChallenges();
@@ -75,10 +87,11 @@ export async function startPasswordChangeChallenge({ email, name }) {
     expiresAt: Date.now() + CHALLENGE_TTL_MS,
   });
 
-  const mailed = await sendPasswordChangeCodeEmail({
+  const mailed = await sendPasswordCodeEmail({
     toEmail: normalized,
     toName: name || user.name || normalized,
     code: codeOtp,
+    purpose: safePurpose,
   });
   if (!mailed.ok) {
     challenges.delete(challengeId);

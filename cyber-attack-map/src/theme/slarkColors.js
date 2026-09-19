@@ -1,4 +1,4 @@
-/** Palet brand Slark — dipakai di seluruh aplikasi. */
+/** Palet brand Jagra Baya Maya — dipakai di seluruh aplikasi. */
 export const SLARK = {
   /** White — section background */
   bg: '#FFFFFF',

@@ -129,9 +129,7 @@ function MonitorUnit({ reveal, groupRef, onSelect, enabled, hoverLabel, focusSca
           zIndexRange={[50, 0]}
         >
           <div className="pointer-events-none flex justify-center px-2 [writing-mode:horizontal-tb]">
-            <p className={HERO_LABEL_CLASS}>
-              {hoverLabel}
-            </p>
+            <p className={HERO_LABEL_CLASS}>{hoverLabel}</p>
           </div>
         </Html>
       )}
@@ -675,7 +673,7 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
                   setCarouselIndex(1);
                   setView('bookDetail');
                 }}
-                onCashSelect={() => navigate('/purchase')}
+                onCashSelect={() => navigate('/api-key')}
                 monitorHoverLabel={t('nav.monitoring')}
                 bookHoverLabel={t('home.guidebookCta')}
                 cashHoverLabel={t('home.cashHoverCta')}
@@ -770,7 +768,7 @@ export function HomeInteractiveHero({ initialView = 'command', theme }) {
                 {t('home.monitorDetailTitle')}
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-[var(--hero-muted)] sm:mt-3 sm:text-sm md:mt-4">{t('home.monitorDetailBody')}</p>
-              <p className="mt-2 hidden text-[11px] leading-relaxed text-[var(--hero-muted)] opacity-90 sm:mt-3 sm:block sm:text-xs md:mt-4">{t('home.monitorDetailHint')}</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--hero-muted)] opacity-90 sm:mt-3 sm:text-xs md:mt-4">{t('home.monitorDetailHint')}</p>
             </div>
             <div className="mt-5 shrink-0 pt-1 sm:mt-6 md:mt-8">
               <button

@@ -3,12 +3,12 @@ import { X } from 'lucide-react';
 import { CATEGORY_STYLE, THREAT_CATEGORY, threatCategoryLabelKey } from '../../constants/threatCategories.js';
 import { exportIncidentPdf } from '../../utils/exportIncidentPdf.js';
 import { useI18n } from '../../i18n/I18nContext.jsx';
-import { buildThreatReadoutText } from '../../utils/threatAiPrompt.js';
+import { buildIncidentReadoutText } from '../../utils/incidentReadout.js';
 import { describeAttackActivity } from '../../utils/describeAttackActivity.js';
 import { buildAttackLogLines, formatAttackConfidence } from '../../utils/attackLogFormatter.js';
 
 function dash(value) {
-  return value && String(value).trim() ? String(value).trim() : '—';
+  return value && String(value).trim() ? String(value).trim() : '-';
 }
 
 function DetailItem({ label, value, mono = false, dark = false }) {
@@ -45,11 +45,10 @@ function DetailSection({ title, children, dark = false }) {
  * @param {{
  *   attack: object | null;
  *   onClose: () => void;
- *   onSendToAI?: () => void;
  *   variant?: 'light' | 'dark';
  * }} props
  */
-export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'light' }) {
+export function IncidentDetailModal({ attack, onClose, variant = 'light' }) {
   const { t, locale } = useI18n();
   const dark = variant === 'dark';
   const loc = locale === 'id' ? 'id' : 'en';
@@ -77,7 +76,7 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
 
   const cat = CATEGORY_STYLE[attack.category] || CATEGORY_STYLE[THREAT_CATEGORY.UNKNOWN];
   const activity = describeAttackActivity(attack, loc);
-  const readout = buildThreatReadoutText(attack, {
+  const readout = buildIncidentReadoutText(attack, {
     inetScope: t('detail.inetScope'),
     protectedSite: t('detail.protectedSite'),
   });
@@ -210,7 +209,7 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
                 <div className="grid gap-3 sm:grid-cols-2">
                   <DetailItem dark={dark} label={t('incidentModal.attacker')} value={dash(attack.attackerIp) || t('incidentModal.unknownIp')} mono />
                   <DetailItem dark={dark} label={t('incidentModal.region')} value={dash(attack.sourceLabel)} />
-                  <DetailItem dark={dark} label={t('incidentModal.requestId')} value={dash(attack.requestId || attack.incidentId || attack.id)} mono />
+                  <DetailItem dark={dark} label={t('incidentModal.requestId')} value={dash(attack.requestId || attack.id)} mono />
                   <DetailItem dark={dark} label={t('incidentModal.time')} value={new Date(attack.createdAt).toLocaleString(locale === 'id' ? 'id-ID' : 'en-GB', { hour12: false })} />
                   <DetailItem dark={dark} label={t('incidentModal.geoLocation')} value={dash(attack.geoMeta?.location || attack.sourceLabel)} />
                   <DetailItem dark={dark} label={t('incidentModal.geoCoordinates')} value={dash(attack.geoMeta?.coordinates)} mono />
@@ -270,20 +269,6 @@ export function IncidentDetailModal({ attack, onClose, onSendToAI, variant = 'li
             </div>
           </div>
         </div>
-
-        {onSendToAI ? (
-          <div
-            className={`flex shrink-0 flex-wrap items-center justify-stretch gap-2 border-t px-3 py-3 sm:justify-end sm:px-4 ${dark ? 'border-slate-600/50 bg-[#1a2332]' : 'border-slark-border bg-slark-card'}`}
-          >
-            <button
-              type="button"
-              onClick={onSendToAI}
-              className="w-full rounded-lg border border-slark-primary/30 bg-slark-primary px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-slark-primary-hover sm:w-auto sm:py-2"
-            >
-              {t('detail.sendToAI')}
-            </button>
-          </div>
-        ) : null}
       </div>
     </div>
   );

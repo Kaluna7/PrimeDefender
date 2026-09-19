@@ -28,7 +28,7 @@ export function AboutUsPage() {
   const { t, locale } = useI18n();
 
   useEffect(() => {
-    document.title = `${t('brand.name')} – ${t('nav.about')}`;
+    document.title = `${t('brand.name')} | ${t('nav.about')}`;
   }, [t, locale]);
 
   return (

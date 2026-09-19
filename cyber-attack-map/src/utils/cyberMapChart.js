@@ -2,7 +2,7 @@ import * as echarts from 'echarts';
 import worldGeo from '../assets/world.geo.json';
 import { GEO_BOUNDING } from '../config/cyberMapConfig.js';
 import { MAX_MAP_ARCS } from '../constants/monitoringLimits.js';
-import { getAttackArcColors } from '../constants/attackTypeColors.js';
+import { getAttackArcColors, resolveAttackTypeKey } from '../constants/attackTypeColors.js';
 import { deriveProtectionBucket } from './deriveProtectionBucket.js';
 
 let worldMapRegistered = false;
@@ -56,30 +56,60 @@ function hashString(text) {
   return Math.abs(hash);
 }
 
-function curvenessForRoute(routeKey) {
+function curvenessForRoute(routeKey, laneIndex = 0, laneCount = 1) {
   const hash = hashString(routeKey);
   const lane = hash % 7;
   const sign = hash % 2 === 0 ? 1 : -1;
-  return sign * (0.08 + lane * 0.024);
+  const base = sign * (0.08 + lane * 0.024);
+  if (laneCount <= 1) return base;
+
+  // Fan out incidents sharing the same source/target so each colored line remains visible.
+  const offset = (laneIndex - (laneCount - 1) / 2) * 0.055;
+  return Math.max(-0.38, Math.min(0.38, base + offset));
 }
 
-function collapseRoutes(attacks, selectedAttackId) {
-  const byRoute = new Map();
+function collapseEquivalentRoutes(attacks, selectedAttackId) {
+  const groups = new Map();
   for (const attack of attacks) {
-    const key = routeKeyForAttack(attack);
-    const current = byRoute.get(key);
+    const routeKey = routeKeyForAttack(attack);
+    const typeKey = resolveAttackTypeKey(attack);
+    const displayKey = `${routeKey}|${typeKey}`;
+    const occurrences =
+      typeof attack.hitCount === 'number' && attack.hitCount > 0 ? attack.hitCount : 1;
+    const current = groups.get(displayKey);
+
     if (!current) {
-      byRoute.set(key, { attack, routeKey: key, count: 1 });
+      groups.set(displayKey, { attack, routeKey, count: occurrences });
       continue;
     }
 
-    current.count += 1;
+    current.count += occurrences;
     const selectedWins = selectedAttackId && attack.id === selectedAttackId;
-    if (selectedWins || attack.createdAt >= current.attack.createdAt) {
-      current.attack = selectedWins ? attack : attack;
+    const currentSelected = selectedAttackId && current.attack.id === selectedAttackId;
+    if (selectedWins || (!currentSelected && attack.createdAt >= current.attack.createdAt)) {
+      current.attack = attack;
     }
   }
-  return Array.from(byRoute.values());
+
+  const groupedRoutes = Array.from(groups.values()).sort(
+    (a, b) => a.attack.createdAt - b.attack.createdAt,
+  );
+  const laneTotals = new Map();
+  for (const group of groupedRoutes) {
+    laneTotals.set(group.routeKey, (laneTotals.get(group.routeKey) || 0) + 1);
+  }
+
+  const seen = new Map();
+  return groupedRoutes.map((group) => {
+    const { routeKey } = group;
+    const laneIndex = seen.get(routeKey) || 0;
+    seen.set(routeKey, laneIndex + 1);
+    return {
+      ...group,
+      laneIndex,
+      laneCount: laneTotals.get(routeKey) || 1,
+    };
+  });
 }
 
 /** Per-route hues for defense section background — stable by route key. */
@@ -107,6 +137,16 @@ function resolveArcHue(attack, routeKey, variant) {
     return defenseArcColorsForRoute(routeKey);
   }
   return null;
+}
+
+function mapPointLabel(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(
+      /\s*[•·|]\s*(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)\s+\S.*$/i,
+      '',
+    )
+    .trim();
 }
 
 const PALETTES = {
@@ -162,15 +202,15 @@ export function buildCyberMapOption(landDots, attacks, options = {}) {
   }));
 
   const recent = attacks.slice(-maxArcs);
-  const routes = collapseRoutes(recent, selectedAttackId);
+  const routes = collapseEquivalentRoutes(recent, selectedAttackId);
   const highlightedIds = new Set(
     selectedAttackId ? [selectedAttackId] : routes.slice(-2).map((r) => r.attack.id).filter(Boolean),
   );
 
-  const lineData = routes.map(({ attack: a, routeKey, count }, index) => {
+  const lineData = routes.map(({ attack: a, routeKey, count, laneIndex, laneCount }, index) => {
     const baseW = Math.min(3, 1.1 + (a.ddos?.peakGbps ? Math.min(1.2, a.ddos.peakGbps * 0.04) : 0));
     const hi = highlightedIds.has(a.id);
-    const curveness = curvenessForRoute(routeKey);
+    const curveness = curvenessForRoute(routeKey, laneIndex, laneCount);
     const width = variant === 'defense-bg'
       ? hi ? 2.2 : Math.min(1.8, 1.1 + Math.min(0.3, (count - 1) * 0.08))
       : hi ? Math.max(baseW, 3.4) : Math.min(3.1, baseW + Math.min(0.45, (count - 1) * 0.12));
@@ -188,6 +228,7 @@ export function buildCyberMapOption(landDots, attacks, options = {}) {
       ],
       attackId: a.id,
       routeKey,
+      laneIndex,
       routeCount: count,
       lineStyle: {
         width,
@@ -210,8 +251,12 @@ export function buildCyberMapOption(landDots, attacks, options = {}) {
   const pulseData = [];
   for (const { attack: a, routeKey, count } of routes) {
     const selected = highlightedIds.has(a.id);
-    const sourceTitle = a.sourceLabel || a.attackerIp || '';
-    const targetTitle = a.targetLabel || a.sourceLabel || '';
+    const sourceTitle = mapPointLabel(a.sourceLabel) || a.attackerIp || '';
+    const targetTitle =
+      mapPointLabel(a.targetLabel) ||
+      mapPointLabel(a.targetService) ||
+      a.siteId ||
+      sourceTitle;
     const arcHue = resolveArcHue(a, routeKey, variant);
     const pulseSource = arcHue ? arcHue.source : palette.pulseSource;
     const pulseTarget = arcHue ? (selected ? arcHue.hi : arcHue.target) : palette.pulseTarget;

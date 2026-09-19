@@ -23,7 +23,7 @@ function formatPps(n) {
 }
 
 function labelOrDash(s) {
-  return s && String(s).trim() ? s : '—';
+  return s && String(s).trim() ? s : '-';
 }
 
 export function LiveAttackFeed({
@@ -219,11 +219,11 @@ export function LiveAttackFeed({
                     </p>
                   </div>
 
-                  {(a.siteId || a.tenantId) && (
+                  {a.siteId && (
                     <p className={`mt-1.5 text-[9px] ${ui.muted}`}>
                       {t('feed.customerSite')}{' '}
                       <span className={`font-mono ${dark ? 'text-slate-500' : 'text-slark-muted/80'}`}>
-                        {a.siteId || a.tenantId}
+                        {a.siteId}
                       </span>
                     </p>
                   )}

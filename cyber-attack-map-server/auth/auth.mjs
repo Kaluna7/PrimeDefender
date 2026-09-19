@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { isUserEmailVerified, markEmailVerified, upsertUserByEmail, createPasswordUser, findUserAuthByEmail, updateUserPasswordHash } from '../db/usersMongo.mjs';
+import { markEmailVerified, upsertUserByEmail, createPasswordUser, findUserAuthByEmail, updateUserPasswordHash } from '../db/usersMongo.mjs';
 import { mongoDisabled } from '../db/mongo.mjs';
 import { getSmtpConfig, sendSmtpEmail, smtpConfigured } from './smtp.mjs';
 
@@ -47,7 +47,7 @@ export function getAuthConfig() {
       if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
       return url || 'http://localhost:5173';
     })(),
-    sessionSecret: process.env.AUTH_SESSION_SECRET?.trim() || 'slark-dev-session-secret',
+    sessionSecret: process.env.AUTH_SESSION_SECRET?.trim() || 'Jagra Baya Maya-dev-session-secret',
     ...getSmtpConfig(),
   };
 }
@@ -194,7 +194,7 @@ async function exchangeGoogleCode(code) {
 export async function sendVerificationEmail({ toEmail, toName, code }) {
   const html = `
     <div style="font-family:system-ui,sans-serif;background:#0F172A;color:#F8FAFC;padding:24px">
-      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Slark</h1>
+      <h1 style="color:#C62828;font-size:18px;margin:0 0 12px">Jagra Baya Maya</h1>
       <p>Hi ${toName || 'there'},</p>
       <p>Your verification code to complete sign-in:</p>
       <p style="font-size:28px;letter-spacing:0.35em;font-weight:700;color:#C62828;margin:20px 0">${code}</p>
@@ -205,18 +205,9 @@ export async function sendVerificationEmail({ toEmail, toName, code }) {
   return sendSmtpEmail({
     toEmail,
     toName,
-    subject: 'Slark — your verification code',
+    subject: 'Jagra Baya Maya — your verification code',
     html,
   });
-}
-
-async function accountAlreadyVerified(email) {
-  const normalized = String(email).toLowerCase().trim();
-  if (verifiedEmailsMemory.has(normalized)) return true;
-  if (mongoDisabled()) return false;
-  const verified = await isUserEmailVerified(normalized);
-  if (verified) verifiedEmailsMemory.add(normalized);
-  return verified;
 }
 
 /**
@@ -243,7 +234,7 @@ async function createLoginSession(profile) {
       email: user.email,
       name: user.name,
       picture: user.picture,
-      subscription: user.subscription || null,
+      apiKey: user.apiKey || null,
     },
   };
 }
@@ -262,11 +253,12 @@ export async function handleGoogleCallback({ code, state }) {
     return { ok: false, error: 'google_exchange_failed' };
   }
 
-  // Google already verified the email — skip OTP challenge.
+  // Google already verified the identity — login goes straight in (no OTP / password-setup gate).
   verifiedEmailsMemory.add(profile.email);
-  await markEmailVerified(profile.email);
 
   const login = await createLoginSession(profile);
+  await markEmailVerified(profile.email);
+
   return {
     ok: true,
     directLogin: true,
@@ -356,30 +348,17 @@ export async function loginWithPassword({ email, password }) {
   }
 
   const record = await findUserAuthByEmail(normalized);
-  if (!record?.passwordHash) {
+  if (!record) {
     return { ok: false, error: 'invalid_credentials' };
+  }
+  if (!record.passwordHash) {
+    return { ok: false, error: 'google_account' };
   }
 
   const valid = await verifyPassword(password, record.passwordHash);
   if (!valid) return { ok: false, error: 'invalid_credentials' };
 
-  const verified = await accountAlreadyVerified(normalized);
-  if (!verified) {
-    if (!smtpConfigured()) return { ok: false, error: 'smtp_not_configured' };
-    const challenge = await startEmailVerificationChallenge({
-      email: normalized,
-      name: record.name,
-      picture: record.picture,
-    });
-    if (!challenge.ok) return challenge;
-    return {
-      ok: false,
-      error: 'verification_required',
-      challengeId: challenge.challengeId,
-      email: challenge.email,
-    };
-  }
-
+  // Login only checks email + password. OTP is for register (and other account actions), not login.
   const login = await createLoginSession({
     email: normalized,
     name: record.name,

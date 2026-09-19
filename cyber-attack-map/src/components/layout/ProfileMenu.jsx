@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, Globe, LogIn, LogOut, Settings, ShieldCheck } from 'lucide-react';
+import { LogIn, LogOut, Settings, ShieldCheck } from 'lucide-react';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import { fetchAuthStatus, signOut } from '../../services/auth.js';
-import { LanguageFlag } from './LanguageFlag.jsx';
 
 const MENU_PANEL_CLASS =
   'w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slark-border/80 bg-slark-bg/95 shadow-[0_18px_50px_-12px_rgba(15,23,42,0.28)] backdrop-blur-md dark:border-slark-border/50 dark:bg-slark-dark/95 dark:shadow-[0_18px_50px_-12px_rgba(0,0,0,0.55)]';
@@ -22,14 +21,6 @@ function MenuRowIcon({ children, className = '' }) {
   );
 }
 
-function LanguageFlagSlot({ locale, className = '' }) {
-  return (
-    <span className={`flex h-8 w-8 shrink-0 items-center justify-center ${className}`}>
-      <LanguageFlag locale={locale} className="shadow-none" />
-    </span>
-  );
-}
-
 function initialsFromUser(user) {
   const name = user?.name?.trim() || user?.email || '?';
   const parts = name.split(/\s+/).filter(Boolean);
@@ -41,14 +32,13 @@ function initialsFromUser(user) {
  * @param {{ variant?: 'default' | 'sidebar'; navDark?: boolean; expanded?: boolean }} props
  */
 export function ProfileMenu({ variant = 'default', navDark = false, expanded = false }) {
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const rootRef = useRef(null);
   const triggerRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const menuRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [open, setOpen] = useState(false);
-  const [languageOpen, setLanguageOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(/** @type {{ email: string, name: string, picture?: string } | null} */ (null));
   const [menuPos, setMenuPos] = useState(/** @type {{ left: number; bottom: number } | null} */ (null));
@@ -137,12 +127,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
   }, [open, isSidebar, isMobile]);
 
   useEffect(() => {
-    if (!open) {
-      setLanguageOpen(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
     if (!open) return undefined;
     const onDoc = (e) => {
       const target = e.target;
@@ -161,11 +145,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
-
-  const handleLocaleChange = (nextLocale) => {
-    setLocale(nextLocale);
-    setOpen(false);
-  };
 
   const handleSignOut = async () => {
     setOpen(false);
@@ -186,11 +165,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
     initials
   );
 
-  const languageOptions = [
-    { id: 'en', label: t('profile.languageEnglish') },
-    { id: 'id', label: t('profile.languageIndonesian') },
-  ];
-
   const panelClass = navDark
     ? 'thin-scrollbar-dark max-h-[calc(100dvh-5rem)] w-[min(18.5rem,calc(100vw-1.5rem))] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-600/60 bg-slark-dark/98 text-slate-200 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.55)] backdrop-blur-md'
     : MENU_PANEL_CLASS;
@@ -198,79 +172,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
   const itemClass = navDark
     ? 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]'
     : MENU_ITEM_CLASS;
-
-  const languageSection = (
-    <>
-      <button
-        type="button"
-        role="menuitem"
-        aria-expanded={languageOpen}
-        onClick={() => setLanguageOpen((v) => !v)}
-        className={`${itemClass} ${languageOpen ? (navDark ? 'bg-white/[0.05]' : 'bg-slark-card/70 dark:bg-white/[0.05]') : ''}`}
-      >
-        <MenuRowIcon className={navDark ? 'bg-white/[0.06] text-slate-300 ring-white/10' : ''}>
-          <Globe className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </MenuRowIcon>
-        <span className="min-w-0 flex-1 font-medium">{t('profile.changeLanguage')}</span>
-        <span className="flex w-11 shrink-0 items-center justify-end gap-1.5">
-          <LanguageFlag locale={locale} className="shadow-none" />
-          <ChevronDown
-            className={`h-4 w-4 transition-transform motion-safe:duration-200 ${
-              navDark ? 'text-slate-400' : 'text-slark-muted'
-            } ${languageOpen ? 'rotate-180' : ''}`}
-            strokeWidth={2}
-            aria-hidden
-          />
-        </span>
-      </button>
-
-      {languageOpen && (
-        <div
-          className={`mx-2 mb-1 space-y-0.5 rounded-xl p-1 ring-1 ${
-            navDark
-              ? 'bg-white/[0.04] ring-white/10'
-              : 'bg-slark-card/60 ring-slark-border/50 dark:bg-white/[0.04] dark:ring-white/10'
-          }`}
-          role="group"
-          aria-label={t('profile.changeLanguage')}
-        >
-          {languageOptions.map((option) => {
-            const selected = locale === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={selected}
-                onClick={() => handleLocaleChange(option.id)}
-                className={`${itemClass} py-2 ${
-                  selected
-                    ? navDark
-                      ? 'bg-slark-primary/20 font-semibold text-white'
-                      : 'bg-slark-primary/12 font-semibold text-slark-primary shadow-sm dark:bg-slark-primary/20 dark:text-white'
-                    : navDark
-                      ? 'text-slate-200 hover:bg-white/[0.05]'
-                      : 'text-slark-text hover:bg-slark-bg/80 dark:text-white/90 dark:hover:bg-white/[0.05]'
-                }`}
-              >
-                <LanguageFlagSlot locale={option.id} />
-                <span className="min-w-0 flex-1">{option.label}</span>
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                  {selected ? (
-                    <Check
-                      className={`h-4 w-4 ${navDark ? 'text-white' : 'text-slark-primary dark:text-white'}`}
-                      strokeWidth={2.5}
-                      aria-hidden
-                    />
-                  ) : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
 
   const menuPanelStyle =
     isMobile
@@ -338,7 +239,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
               </MenuRowIcon>
               <span className="min-w-0 flex-1 font-medium">{t('settings.title')}</span>
             </Link>
-            {languageSection}
           </>
         ) : (
           <>
@@ -353,7 +253,6 @@ export function ProfileMenu({ variant = 'default', navDark = false, expanded = f
               </MenuRowIcon>
               <span className="min-w-0 flex-1">{t('profile.signIn')}</span>
             </Link>
-            {languageSection}
           </>
         )}
       </div>

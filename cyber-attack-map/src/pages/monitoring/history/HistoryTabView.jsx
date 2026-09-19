@@ -43,11 +43,11 @@ const FILTER_ACTIVE_RING = {
 };
 
 function dash(s) {
-  return s && String(s).trim() ? s : '—';
+  return s && String(s).trim() ? s : '-';
 }
 
 function shortId(id) {
-  if (!id) return '—';
+  if (!id) return '-';
   const s = String(id);
   return s.length > 10 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
 }
@@ -134,7 +134,7 @@ function buildSparkline(attacks, pick) {
 }
 
 function fmtCoord(from) {
-  if (!from || typeof from.lat !== 'number' || typeof from.lon !== 'number') return '—';
+  if (!from || typeof from.lat !== 'number' || typeof from.lon !== 'number') return '-';
   const ns = from.lat >= 0 ? 'N' : 'S';
   const ew = from.lon >= 0 ? 'E' : 'W';
   return `${Math.abs(from.lat).toFixed(4)}°${ns}  ${Math.abs(from.lon).toFixed(4)}°${ew}`;
@@ -169,7 +169,7 @@ function HistoryAttackCard({ attack, index, selected, onPreview, t, locale }) {
           {t(`history.severity.${sev}`)}
         </span>
         <span className="font-mono text-[11px] font-semibold text-slate-100">{dash(attack.attackerIp)}</span>
-        <span className="font-mono text-[9px] text-slate-500">{shortId(attack.incidentId || attack.id)}</span>
+        <span className="font-mono text-[9px] text-slate-500">{shortId(attack.id)}</span>
         <span className="ml-auto font-mono text-[10px] tabular-nums text-slate-400">
           {formatIncidentWhen(attack.createdAt, locale, 'time')}
         </span>
@@ -212,7 +212,7 @@ function HistoryAttackCard({ attack, index, selected, onPreview, t, locale }) {
                   : 'border-amber-500/40 bg-amber-600/20 text-amber-200'
               }`}
             >
-              {blocked ? t('feed.blocked') : dash(attack.mitigation || attack.action || '—')}
+              {blocked ? t('feed.blocked') : dash(attack.mitigation || attack.action || '-')}
             </span>
           </div>
           <div>
@@ -296,11 +296,11 @@ function HistorySidebar({
                 <div className="col-span-2 rounded border border-slate-600/40 bg-white/[0.03] px-2 py-2 text-left">
                   <p className="text-[8px] uppercase tracking-wider text-slate-500">{t('detail.firstAttack')}</p>
                   <p className="font-mono text-[10px] text-slate-300">
-                    {window.firstAt ? formatIncidentWhen(window.firstAt, locale, 'short') : '—'}
+                    {window.firstAt ? formatIncidentWhen(window.firstAt, locale, 'short') : '-'}
                   </p>
                   <p className="mt-1 text-[8px] uppercase tracking-wider text-slate-500">{t('detail.lastAttack')}</p>
                   <p className="font-mono text-[10px] text-slate-300">
-                    {window.lastAt ? formatIncidentWhen(window.lastAt, locale, 'short') : '—'}
+                    {window.lastAt ? formatIncidentWhen(window.lastAt, locale, 'short') : '-'}
                   </p>
                 </div>
               </div>

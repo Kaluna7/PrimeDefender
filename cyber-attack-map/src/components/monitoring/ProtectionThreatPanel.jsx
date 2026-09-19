@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { getAttackTypePanelStyles } from '../../constants/attackTypeColors.js';
+import { PROTECTION_COUNT_UNLIMITED_THRESHOLD } from '../../constants/monitoringLimits.js';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import { deriveProtectionBucket, PROTECTION_ORDER } from '../../utils/deriveProtectionBucket.js';
 
@@ -11,7 +12,10 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
     const c = Object.fromEntries(PROTECTION_ORDER.map((k) => [k, 0]));
     for (const a of attacks) {
       const b = deriveProtectionBucket(a);
-      if (b && c[b] !== undefined) c[b] += 1;
+      if (b && c[b] !== undefined) {
+        const n = typeof a.hitCount === 'number' && a.hitCount > 0 ? a.hitCount : 1;
+        c[b] += n;
+      }
     }
     return c;
   }, [attacks]);
@@ -43,6 +47,7 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
         {PROTECTION_ORDER.map((key) => {
           const cnt = counts[key];
           const hot = cnt > 0;
+          const displayCount = cnt > PROTECTION_COUNT_UNLIMITED_THRESHOLD ? '∞' : cnt;
           const typeStyles = getAttackTypePanelStyles(key, { hot });
           return (
             <li
@@ -79,8 +84,9 @@ export function ProtectionThreatPanel({ attacks, variant = 'light' }) {
                   hot ? 'font-cyber text-sm sm:text-base' : dark ? 'text-slate-400' : 'text-slark-muted'
                 }`}
                 style={typeStyles.count}
+                title={cnt > PROTECTION_COUNT_UNLIMITED_THRESHOLD ? `${cnt}+` : String(cnt)}
               >
-                {cnt}
+                {displayCount}
               </span>
             </li>
           );

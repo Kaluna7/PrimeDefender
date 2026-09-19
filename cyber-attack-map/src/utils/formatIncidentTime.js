@@ -2,7 +2,7 @@
 export function formatIncidentWhen(ts, locale, style = 'full') {
   const loc = locale === 'id' ? 'id-ID' : 'en-GB';
   const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
 
   if (style === 'time') {
     return d.toLocaleTimeString(loc, {

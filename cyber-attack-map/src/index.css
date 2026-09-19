@@ -246,27 +246,10 @@ body {
   text-transform: uppercase;
 }
 
-/* Fixed-height slot: typing wraps inside without pushing CTAs down */
+/* Vertically centered hero copy (brand + typing + CTAs) */
 .landing-hero-content {
-  padding-top: 4.5rem;
-}
-
-@media (min-width: 640px) {
-  .landing-hero-content {
-    padding-top: 6rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .landing-hero-content {
-    padding-top: 7.5rem;
-  }
-}
-
-@media (min-width: 1280px) {
-  .landing-hero-content {
-    padding-top: 8.5rem;
-  }
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .landing-hero-typing-slot {
@@ -306,13 +289,6 @@ body {
 
 .landing-hero-cta-mobile {
   flex-shrink: 0;
-}
-
-@media (max-width: 639px) {
-  .landing-hero-cta-mobile {
-    margin-bottom: 5rem;
-    padding-bottom: 0;
-  }
 }
 
 @media (min-width: 768px) {
@@ -609,6 +585,38 @@ body {
   cursor: not-allowed;
 }
 
+.auth-input--password {
+  padding-right: 2.75rem;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: #6b7280;
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.auth-password-toggle:hover {
+  color: #111827;
+}
+
+.auth-password-toggle:focus-visible {
+  outline: 2px solid rgba(198, 40, 40, 0.45);
+  outline-offset: 1px;
+}
+
 .auth-input--code {
   text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -713,6 +721,17 @@ body {
 .auth-link:hover {
   color: #b71c1c;
   text-decoration: underline;
+}
+
+.auth-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.35rem;
+}
+
+.auth-forgot-row .auth-link {
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .auth-inline-error {
@@ -1225,33 +1244,6 @@ body {
   opacity: 1;
 }
 
-@keyframes ai-chat-history-backdrop-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes ai-chat-history-drawer-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.ai-chat-history-backdrop {
-  animation: ai-chat-history-backdrop-in 0.22s ease-out forwards;
-}
-
-.ai-chat-history-drawer {
-  animation: ai-chat-history-drawer-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  will-change: transform;
-}
-
 .monitoring-mobile-nav-backdrop {
   transition: opacity 0.32s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: opacity;
@@ -1590,5 +1582,85 @@ body {
   .landing-cta-orb,
   .landing-cta-bg-line {
     animation: none;
+  }
+}
+
+@keyframes map-ticker-slide-in {
+  0% {
+    transform: translateX(48vw);
+    opacity: 0;
+    filter: blur(5px);
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes map-ticker-slide-out {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateX(-48vw);
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+.map-ticker-viewport {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 1.625rem;
+}
+
+.map-ticker-text {
+  max-width: min(88vw, 32rem);
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.5625rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  color: var(--slark-primary);
+  text-shadow:
+    0 0 18px rgba(198, 40, 40, 0.45),
+    0 0 8px rgba(198, 40, 40, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 640px) {
+  .map-ticker-text {
+    font-size: 0.6875rem;
+    letter-spacing: 0.07em;
+  }
+}
+
+.map-ticker-text--enter {
+  animation: map-ticker-slide-in 1.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.map-ticker-text--exit {
+  animation: map-ticker-slide-out 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-ticker-text--enter,
+  .map-ticker-text--exit {
+    animation: none;
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+
+  .map-ticker-fade-left,
+  .map-ticker-fade-right {
+    display: none;
   }
 }

@@ -192,13 +192,14 @@ function WhySlarkFeatureCardContent({ feature, index, className = '' }) {
   );
 }
 
-function WhySlarkTitle({ title, className = '' }) {
-  const parts = title.split(/(Slark)/i);
+function WhySlarkTitle({ title, brandName = 'Jagra Baya Maya', className = '' }) {
+  const escaped = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = title.split(new RegExp(`(${escaped})`, 'i'));
   return (
     <div className="why-slark-feature-card why-slark-title-card inline-block px-6 py-4 sm:px-10 sm:py-5">
       <h2 className={`font-cyber font-bold ${className}`} style={{ color: C.text }}>
         {parts.map((part, i) =>
-          /^slark$/i.test(part) ? (
+          part.toLowerCase() === brandName.toLowerCase() ? (
             <span key={i} style={{ color: C.primary }}>
               {part}
             </span>
@@ -416,7 +417,8 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
 
     function scrollLen() {
       const vh = scrollerEl?.clientHeight ?? window.innerHeight;
-      return isMobile ? vh * 4.4 : vh * 5.4;
+      // Longer pin distance so the 3D globe scene does not rush past.
+      return isMobile ? vh * 6.2 : vh * 7.8;
     }
 
     function layoutSection() {
@@ -442,7 +444,7 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
       scroller: scrollerEl || undefined,
       start: 'top bottom',
       end: 'bottom bottom',
-      scrub: false,
+      scrub: 1.1,
       onUpdate: (self) => handleScrollProgress(self.progress),
     });
 
@@ -479,7 +481,7 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
     <section id="features" ref={sectionRef} className="relative" style={{ backgroundColor: C.bg }}>
       <div ref={staticGridRef} hidden className="px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-6xl text-center">
-          <WhySlarkTitle title={title} className="text-3xl sm:text-5xl md:text-6xl" />
+          <WhySlarkTitle title={title} brandName={brandName} className="text-3xl sm:text-5xl md:text-6xl" />
         </div>
         <div className="mx-auto mt-12 grid max-w-6xl gap-5 md:grid-cols-3">
           {features.map((feature, index) => (
@@ -497,7 +499,7 @@ export function WhySlarkScrollSection({ title, brandName, finaleTagline, scrollH
           ref={headingRef}
           className="pointer-events-none absolute left-1/2 top-1/2 z-20 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 px-4 text-center"
         >
-          <WhySlarkTitle title={title} className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl" />
+          <WhySlarkTitle title={title} brandName={brandName} className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl" />
         </div>
 
         <div ref={sceneWrapRef} className="why-slark-globe-layer absolute inset-0 z-0">

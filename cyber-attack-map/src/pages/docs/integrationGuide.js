@@ -1,16 +1,16 @@
 /**
- * Customer-facing integration guide — integration steps only.
+ * Customer-facing integration guide. integration steps only.
  */
 
-/** @typedef {'python' | 'javascript'} IntegrationStack */
+/** @typedef {'python' | 'javascript' | 'php'} IntegrationStack */
 
-export const INTEGRATION_STACKS = /** @type {const} */ (['python', 'javascript']);
+export const INTEGRATION_STACKS = /** @type {const} */ (['python', 'javascript', 'php']);
 
 export const CODE_SAMPLES = {
   pythonInstall: `pip install primedefender-fastapi`,
 
-  pythonEnv: `PRIMEDEFENDER_BRIDGE_URL=https://your-bridge-host.com
-PRIMEDEFENDER_API_KEY=pd_your_key_from_slark
+  pythonEnv: `PRIMEDEFENDER_BRIDGE_URL=http://localhost:3000
+PRIMEDEFENDER_API_KEY=pd_your_key_from_jagra_baya_maya
 PRIMEDEFENDER_SITE_ID=my-api
 PRIMEDEFENDER_SITE_LAT=-8.6705
 PRIMEDEFENDER_SITE_LON=115.2126
@@ -24,91 +24,37 @@ app.add_middleware(PrimeDefenderMiddleware)`,
 
   javascriptInstall: `npm install primedefender-client`,
 
-  javascriptEnv: `PRIMEDEFENDER_BRIDGE_URL=https://your-bridge-host.com
-PRIMEDEFENDER_API_KEY=pd_your_key_from_slark
+  javascriptEnv: `PRIMEDEFENDER_BRIDGE_URL=http://localhost:3000
+PRIMEDEFENDER_API_KEY=pd_your_key_from_jagra_baya_maya
 PRIMEDEFENDER_SITE_ID=my-api
 PRIMEDEFENDER_SITE_LAT=-8.6705
 PRIMEDEFENDER_SITE_LON=115.2126
 PRIMEDEFENDER_SITE_REGION_LABEL=Indonesia, Bali`,
 
   javascriptApp: `import express from 'express';
-import { postIncident, resolveIngestUrl } from 'primedefender-client';
+import { primeDefender } from 'primedefender-client';
 
 const app = express();
-app.set('trust proxy', 1);
+app.use(express.json());
+app.use(primeDefender());`,
 
-const ingestUrl = resolveIngestUrl(process.env.PRIMEDEFENDER_BRIDGE_URL);
-const apiKey = process.env.PRIMEDEFENDER_API_KEY;
-const siteId = process.env.PRIMEDEFENDER_SITE_ID || 'my-api';
+  phpInstall: `composer require primedefender/php`,
 
-app.use(async (req, res, next) => {
-  const q = String(req.query.q || '');
-  if (!q.includes("' OR '1'='1")) return next();
+  phpEnv: `PRIMEDEFENDER_BRIDGE_URL=http://localhost:3000
+PRIMEDEFENDER_API_KEY=pd_your_key_from_jagra_baya_maya
+PRIMEDEFENDER_SITE_ID=my-api
+PRIMEDEFENDER_SITE_LAT=-8.6705
+PRIMEDEFENDER_SITE_LON=115.2126
+PRIMEDEFENDER_SITE_REGION_LABEL=Indonesia, Bali`,
 
-  await postIncident({
-    ingestUrl,
-    apiKey,
-    payload: {
-      from: { lat: 35.0, lon: 139.0 },
-      to: {
-        lat: Number(process.env.PRIMEDEFENDER_SITE_LAT),
-        lon: Number(process.env.PRIMEDEFENDER_SITE_LON),
-      },
-      category: 'intrusion',
-      severity: 'high',
-      sourceLabel: req.ip || 'unknown',
-      targetLabel: \`\${siteId} · \${process.env.PRIMEDEFENDER_SITE_REGION_LABEL}\`,
-      siteId,
-      createdAt: Date.now(),
-      blocked: true,
-      action: 'blocked',
-      path: req.path,
-      method: req.method,
-      attackerIp: req.ip || '',
-      userAgent: req.get('user-agent') || '',
-      detection: 'sqli',
-      detectType: 'sqli',
-    },
-  });
+  phpApp: `<?php
+require 'vendor/autoload.php';
 
-  return res.status(403).send('blocked');
-});
+use PrimeDefender\\PrimeDefender;
 
-app.get('/search', (_req, res) => res.json({ ok: true }));`,
+PrimeDefender::guard();
 
-  javascriptPostIncident: `import {
-  postIncident,
-  resolveIngestUrl,
-} from 'primedefender-client';
-
-const ingestUrl = resolveIngestUrl(process.env.PRIMEDEFENDER_BRIDGE_URL);
-const result = await postIncident({
-  ingestUrl,
-  apiKey: process.env.PRIMEDEFENDER_API_KEY,
-  payload: {
-    from: { lat: 35.0, lon: 139.0 },
-    to: { lat: -8.67, lon: 115.21 },
-    category: 'intrusion',
-    severity: 'high',
-    sourceLabel: 'Japan, Tokyo',
-    targetLabel: 'my-site · Indonesia, Bali',
-    siteId: 'my-site',
-    createdAt: Date.now(),
-    blocked: true,
-    action: 'blocked',
-    path: '/api/x',
-    method: 'GET',
-    attackerIp: '203.0.113.1',
-    userAgent: 'curl/8',
-    detection: 'sqli',
-    detectType: 'sqli',
-    detectConfidence: 0.96,
-    responseStatus: 403,
-    mitigation: 'request_block',
-  },
-});
-
-console.log(result.ok, result.status, result.bodyText);`,
+echo 'hello';`,
 
   testCurlCommandEn: `curl -i "https://your-backend-host.com/search?q=' OR '1'='1"`,
 
@@ -124,7 +70,7 @@ console.log(result.ok, result.status, result.bodyText);`,
 /** @typedef {{ id: string; h: string; p: string[]; codeBlocks?: GuideCodeBlock[] }} GuideSection */
 
 /**
- * @param {typeof integrationGuide.en} doc
+ * @param {typeof integrationGuide.id} doc
  * @param {IntegrationStack} stack
  * @returns {GuideSection[]}
  */
@@ -142,7 +88,7 @@ export function guideCodeBlockId(sectionId, codeTitle) {
 }
 
 /**
- * @param {typeof integrationGuide.en} doc
+ * @param {typeof integrationGuide.id} doc
  * @param {IntegrationStack} stack
  */
 export function getGuideNavItems(doc, stack) {
@@ -162,7 +108,7 @@ function stripGuideMarkup(text) {
 }
 
 /**
- * @param {typeof integrationGuide.en} doc
+ * @param {typeof integrationGuide.id} doc
  * @param {IntegrationStack} stack
  * @param {string} query
  */
@@ -207,7 +153,7 @@ export function searchGuide(doc, stack, query) {
   return results.slice(0, 8);
 }
 
-/** @type {Record<'en'|'id', {
+/** @type {Record<'id', {
  *   title: string;
  *   subtitle: string;
  *   stackPickerLabel: string;
@@ -220,112 +166,9 @@ export function searchGuide(doc, stack, query) {
  *   stackSections: Record<IntegrationStack, GuideSection[]>;
  * }>} */
 export const integrationGuide = {
-  en: {
-    title: 'How to integrate',
-    subtitle: 'Connect your backend to Slark so attacks show on your live map.',
-    stackPickerLabel: 'Choose your backend',
-    searchPlaceholder: 'Search documentation…',
-    searchNoResults: 'No results found',
-    menuLabel: 'Open menu',
-    stacks: {
-      python: { label: 'Python' },
-      javascript: { label: 'JavaScript' },
-    },
-    commonBefore: [
-      {
-        id: 'step-api-key',
-        h: 'Step 1 · Get your API key',
-        p: [
-          'Sign in to Slark → **Purchase** a plan → copy the **`pd_…` key** from **Account settings**.',
-        ],
-      },
-    ],
-    stackSections: {
-      python: [
-        {
-          id: 'step-middleware',
-          h: 'Step 2 · Connect middleware',
-          p: [
-            'Install **`primedefender-fastapi`**, set bridge URL + API key in **`.env`**, then add **`PrimeDefenderMiddleware`**. It scans requests and sends incidents to Slark automatically.',
-          ],
-          codeBlocks: [
-            { title: 'Install', codeKey: 'pythonInstall' },
-            { title: '.env', codeKey: 'pythonEnv' },
-            { title: 'main.py', codeKey: 'pythonMain' },
-          ],
-        },
-      ],
-      javascript: [
-        {
-          id: 'step-js-package',
-          h: 'Step 2 · Install primedefender-client',
-          p: [
-            '**`primedefender-client`** is the official npm package for JavaScript/TypeScript. It exposes **`postIncident`** and **`resolveIngestUrl`** to send incidents to your Slark bridge — the same payload contract as **`primedefender-fastapi`**. Requires **Node 18+** (built-in `fetch`).',
-            'Unlike the Python package, this is **not** automatic WAF middleware — call **`postIncident`** from Express, a BFF, or your own security hook when you detect an attack.',
-          ],
-          codeBlocks: [{ title: 'Install', codeKey: 'javascriptInstall' }],
-        },
-        {
-          id: 'step-middleware',
-          h: 'Step 3 · Configure & connect Express',
-          p: [
-            'Set bridge URL + API key in **`.env`**, then wire **`postIncident`** in your Express app (example below detects a simple SQLi probe and reports it to Slark). Add the hook **before** your routes.',
-          ],
-          codeBlocks: [
-            { title: '.env', codeKey: 'javascriptEnv' },
-            { title: 'app.js', codeKey: 'javascriptApp' },
-          ],
-        },
-        {
-          id: 'step-js-api',
-          h: 'Reference · postIncident',
-          p: [
-            'Exports: **`postIncident`**, **`resolveIngestUrl`**, and TypeScript types **`PrimeDefenderIncidentPayload`**, **`PostIncidentOptions`**, **`PostIncidentResult`**. **`resolveIngestUrl`** appends **`/ingest`** when the bridge URL is only an origin — same behavior as the Python reporter.',
-          ],
-          codeBlocks: [{ title: 'postIncident', codeKey: 'javascriptPostIncident' }],
-        },
-        {
-          id: 'step-js-browser',
-          h: 'Browser & API key safety',
-          p: [
-            'From a browser, the bridge must allow **CORS** for your web app origin. **Never** ship your **`pd_…` API key** in public front-end bundles — run **`postIncident`** from Node or a trusted backend-for-frontend.',
-          ],
-        },
-      ],
-    },
-    commonAfter: [
-      {
-        id: 'step-test-curl',
-        h: 'Test 1 — curl',
-        p: [
-          'Replace **`https://your-backend-host.com`** with your backend URL, then copy and run the command below in your terminal.',
-          '**Connected** — a new incident appears on **Monitoring** within a few seconds.',
-          '**Not connected** — no incident; check **`.env`**, restart your backend, and confirm **`PRIMEDEFENDER_BRIDGE_URL`** + **`PRIMEDEFENDER_API_KEY`**.',
-        ],
-        codeBlocks: [{ title: 'curl command', codeKey: 'testCurlCommandEn' }],
-      },
-      {
-        id: 'step-test-form',
-        h: 'Test 2 — login form',
-        p: [
-          'Open your site\'s **login page** in the browser.',
-          'Paste the **SQLi payload** below into the **username or email** field, enter any password, and submit.',
-          'Then open **Monitoring** — same **Connected** / **Not connected** check as Test 1.',
-        ],
-        codeBlocks: [{ title: 'SQLi payload', codeKey: 'testSqliPayloadEn' }],
-      },
-      {
-        id: 'step-done',
-        h: 'Done',
-        p: [
-          'Sign in to Slark → open **Monitoring**. Incidents from your API key appear on the map in real time.',
-        ],
-      },
-    ],
-  },
   id: {
     title: 'Cara integrasi',
-    subtitle: 'Hubungkan backend Anda ke Slark agar serangan tampil di peta live.',
+    subtitle: 'Hubungkan backend Anda ke Jagra Baya Maya agar serangan tampil di peta live.',
     stackPickerLabel: 'Pilih backend Anda',
     searchPlaceholder: 'Cari dokumentasi…',
     searchNoResults: 'Tidak ada hasil',
@@ -333,13 +176,15 @@ export const integrationGuide = {
     stacks: {
       python: { label: 'Python' },
       javascript: { label: 'JavaScript' },
+      php: { label: 'PHP' },
     },
     commonBefore: [
       {
         id: 'step-api-key',
         h: 'Langkah 1 · Dapatkan API key',
         p: [
-          'Masuk ke Slark → **Purchase** paket → salin **key `pd_…`** di **Pengaturan akun**.',
+          'Masuk ke Jagra Baya Maya → **Purchase** paket → salin **key `pd_…`** di **Pengaturan akun**.',
+          'Anda juga butuh **URL bridge** (`PRIMEDEFENDER_BRIDGE_URL`). host bridge Jagra Baya Maya Anda (default lokal: `http://localhost:3000`). Middleware tidak aktif sampai **URL bridge**, **API key**, dan **site id** semuanya diisi.',
         ],
       },
     ],
@@ -349,7 +194,7 @@ export const integrationGuide = {
           id: 'step-middleware',
           h: 'Langkah 2 · Pasang middleware',
           p: [
-            'Install **`primedefender-fastapi`**, isi URL bridge + API key di **`.env`**, lalu tambahkan **`PrimeDefenderMiddleware`**. Middleware memindai request dan mengirim insiden ke Slark otomatis.',
+            'Install **`primedefender-fastapi`**, isi URL bridge, API key, dan detail situs di **`.env`**, lalu tambahkan **`PrimeDefenderMiddleware`**. Middleware memindai request dan mengirim insiden ke Jagra Baya Maya otomatis.',
           ],
           codeBlocks: [
             { title: 'Install', codeKey: 'pythonInstall' },
@@ -360,38 +205,29 @@ export const integrationGuide = {
       ],
       javascript: [
         {
-          id: 'step-js-package',
-          h: 'Langkah 2 · Install primedefender-client',
-          p: [
-            '**`primedefender-client`** adalah package npm resmi untuk JavaScript/TypeScript. Menyediakan **`postIncident`** dan **`resolveIngestUrl`** untuk mengirim insiden ke bridge Slark — kontrak payload sama dengan **`primedefender-fastapi`**. Butuh **Node 18+** (`fetch` bawaan).',
-            'Berbeda dengan paket Python, ini **bukan** middleware WAF otomatis — panggil **`postIncident`** dari Express, BFF, atau hook keamanan Anda saat mendeteksi serangan.',
-          ],
-          codeBlocks: [{ title: 'Install', codeKey: 'javascriptInstall' }],
-        },
-        {
           id: 'step-middleware',
-          h: 'Langkah 3 · Konfigurasi & hubungkan Express',
+          h: 'Langkah 2 · Pasang middleware',
           p: [
-            'Isi URL bridge + API key di **`.env`**, lalu sambungkan **`postIncident`** di app Express (contoh di bawah mendeteksi probe SQLi sederhana dan melaporkannya ke Slark). Pasang hook **sebelum** route Anda.',
+            'Install **`primedefender-client`**, isi URL bridge, API key, dan detail situs di **`.env`**, lalu tambahkan **`primeDefender()`**. Middleware memindai request dan mengirim insiden ke Jagra Baya Maya otomatis. perilaku sama dengan **`primedefender-fastapi`**. Butuh **Node 18+**. Jalankan di **backend**, jangan di bundle front-end publik.',
           ],
           codeBlocks: [
+            { title: 'Install', codeKey: 'javascriptInstall' },
             { title: '.env', codeKey: 'javascriptEnv' },
             { title: 'app.js', codeKey: 'javascriptApp' },
           ],
         },
+      ],
+      php: [
         {
-          id: 'step-js-api',
-          h: 'Referensi · postIncident',
+          id: 'step-middleware',
+          h: 'Langkah 2 · Pasang middleware',
           p: [
-            'Export: **`postIncident`**, **`resolveIngestUrl`**, dan tipe TypeScript **`PrimeDefenderIncidentPayload`**, **`PostIncidentOptions`**, **`PostIncidentResult`**. **`resolveIngestUrl`** menambahkan **`/ingest`** jika URL bridge hanya origin — perilaku sama dengan reporter Python.',
+            'Install **`primedefender/php`**, isi URL bridge, API key, dan detail situs di **`.env`**, lalu panggil **`PrimeDefender::guard()`** di awal entrypoint PHP (atau pasang middleware PSR-15 di Slim). Middleware memindai request dan mengirim insiden ke Jagra Baya Maya otomatis. Butuh **PHP 8.1+**.',
           ],
-          codeBlocks: [{ title: 'postIncident', codeKey: 'javascriptPostIncident' }],
-        },
-        {
-          id: 'step-js-browser',
-          h: 'Browser & keamanan API key',
-          p: [
-            'Dari browser, bridge harus mengizinkan **CORS** untuk origin web app Anda. **Jangan** menaruh **API key `pd_…`** di bundle front-end publik — jalankan **`postIncident`** dari Node atau backend-for-frontend tepercaya.',
+          codeBlocks: [
+            { title: 'Install', codeKey: 'phpInstall' },
+            { title: '.env', codeKey: 'phpEnv' },
+            { title: 'index.php', codeKey: 'phpApp' },
           ],
         },
       ],
@@ -399,21 +235,21 @@ export const integrationGuide = {
     commonAfter: [
       {
         id: 'step-test-curl',
-        h: 'Tes 1 — curl',
+        h: 'Tes 1. curl',
         p: [
           'Ganti **`https://link-backend-anda.com`** dengan URL backend Anda, lalu salin dan jalankan perintah di bawah di terminal.',
-          '**Terhubung** — insiden baru muncul di **Monitoring** dalam beberapa detik.',
-          '**Belum terhubung** — tidak ada insiden; cek **`.env`**, restart backend, dan pastikan **`PRIMEDEFENDER_BRIDGE_URL`** + **`PRIMEDEFENDER_API_KEY`** benar.',
+          '**Terhubung**. insiden baru muncul di **Monitoring** dalam beberapa detik.',
+          '**Belum terhubung**. tidak ada insiden; cek **`.env`** (`PRIMEDEFENDER_BRIDGE_URL`, `PRIMEDEFENDER_API_KEY`, `PRIMEDEFENDER_SITE_ID`), restart backend, dan pastikan key benar.',
         ],
         codeBlocks: [{ title: 'Perintah curl', codeKey: 'testCurlCommandId' }],
       },
       {
         id: 'step-test-form',
-        h: 'Tes 2 — form login',
+        h: 'Tes 2. form login',
         p: [
           'Buka **halaman login** situs Anda di browser.',
           'Tempel **payload SQLi** di bawah ke field **username atau email**, isi password apa saja, lalu kirim form.',
-          'Lalu buka **Monitoring** — cek **Terhubung** / **Belum terhubung** sama seperti Tes 1.',
+          'Lalu buka **Monitoring**. cek **Terhubung** / **Belum terhubung** sama seperti Tes 1.',
         ],
         codeBlocks: [{ title: 'Payload SQLi', codeKey: 'testSqliPayloadId' }],
       },
@@ -421,7 +257,7 @@ export const integrationGuide = {
         id: 'step-done',
         h: 'Selesai',
         p: [
-          'Masuk ke Slark → buka **Monitoring**. Insiden dari API key Anda muncul di peta secara real time.',
+          'Masuk ke Jagra Baya Maya → buka **Monitoring**. Insiden dari API key Anda muncul di peta secara real time.',
         ],
       },
     ],

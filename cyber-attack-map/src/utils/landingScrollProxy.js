@@ -1,14 +1,26 @@
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-/** GSAP ScrollTrigger proxy for the app’s custom scroll container. */
+/** @type {import('lenis').default | null} */
+let landingLenis = null;
+
+/** @param {import('lenis').default | null} lenis */
+export function setLandingLenis(lenis) {
+  landingLenis = lenis;
+}
+
+/** GSAP ScrollTrigger proxy for the app’s custom scroll container (+ Lenis when active). */
 export function bindLandingScrollProxy(scrollerEl) {
   if (!scrollerEl) return;
   ScrollTrigger.scrollerProxy(scrollerEl, {
     scrollTop(value) {
       if (arguments.length) {
-        scrollerEl.scrollTop = value;
+        if (landingLenis) {
+          landingLenis.scrollTo(value, { immediate: true });
+        } else {
+          scrollerEl.scrollTop = value;
+        }
       }
-      return scrollerEl.scrollTop;
+      return landingLenis ? landingLenis.scroll : scrollerEl.scrollTop;
     },
     getBoundingClientRect() {
       return {

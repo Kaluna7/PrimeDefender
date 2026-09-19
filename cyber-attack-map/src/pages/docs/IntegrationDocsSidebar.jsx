@@ -4,7 +4,7 @@ import { INTEGRATION_STACKS, getGuideNavItems } from './integrationGuide.js';
 
 /**
  * @param {object} props
- * @param {import('./integrationGuide.js').integrationGuide.en} props.doc
+ * @param {import('./integrationGuide.js').integrationGuide.id} props.doc
  * @param {import('./integrationGuide.js').IntegrationStack} props.stack
  * @param {(stack: import('./integrationGuide.js').IntegrationStack) => void} props.onStackChange
  * @param {() => void} [props.onNavigate]

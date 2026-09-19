@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import { translate } from './translations.js';
 
 const STORAGE_KEY = 'slark-locale';
@@ -7,33 +7,22 @@ const I18nContext = createContext(null);
 
 /** @param {{ children: import('react').ReactNode }} props */
 export function I18nProvider({ children }) {
-  const [locale, setLocaleState] = useState(() => {
-    try {
-      const s = localStorage.getItem(STORAGE_KEY);
-      if (s === 'en' || s === 'id') return s;
-    } catch {
-      /* ignore */
-    }
-    return 'en';
-  });
+  const locale = 'id';
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, locale);
+      localStorage.setItem(STORAGE_KEY, 'id');
     } catch {
       /* ignore */
     }
-    document.documentElement.lang = locale === 'id' ? 'id' : 'en';
-  }, [locale]);
-
-  const setLocale = useCallback((loc) => {
-    if (loc === 'en' || loc === 'id') setLocaleState(loc);
+    document.documentElement.lang = 'id';
   }, []);
 
-  const t = useCallback(
-    (key, vars) => translate(locale, key, vars),
-    [locale]
-  );
+  const setLocale = useCallback(() => {
+    /* Indonesian only */
+  }, []);
+
+  const t = useCallback((key, vars) => translate(locale, key, vars), [locale]);
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
