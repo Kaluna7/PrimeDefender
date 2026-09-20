@@ -253,7 +253,11 @@ export async function handleGoogleCallback({ code, state }) {
     return { ok: false, error: 'google_exchange_failed' };
   }
 
-  // Google already verified the identity — login goes straight in (no OTP / password-setup gate).
+  const existing = await findUserAuthByEmail(profile.email);
+  // New Google accounts (no password yet) must complete email OTP + password setup.
+  // Returning Google users who already set a password go straight in.
+  const needsPasswordSetup = !existing?.passwordHash;
+
   verifiedEmailsMemory.add(profile.email);
 
   const login = await createLoginSession(profile);
@@ -264,6 +268,7 @@ export async function handleGoogleCallback({ code, state }) {
     directLogin: true,
     sessionToken: login.sessionToken,
     user: login.user,
+    needsPasswordSetup,
   };
 }
 

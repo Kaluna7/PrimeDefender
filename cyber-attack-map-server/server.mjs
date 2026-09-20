@@ -281,7 +281,8 @@ const httpServer = createServer(async (req, res) => {
         sessionCookieHeader(result.sessionToken, { secure: AUTH_COOKIE_SECURE })
       );
       const sessionQ = encodeURIComponent(result.sessionToken);
-      redirect(res, `${FRONTEND_URL}/?hub=1&session=${sessionQ}`);
+      const setupQ = result.needsPasswordSetup ? '&setPassword=1' : '';
+      redirect(res, `${FRONTEND_URL}/?hub=1&session=${sessionQ}${setupQ}`);
       return;
     }
     const emailQ = encodeURIComponent(result.email);
