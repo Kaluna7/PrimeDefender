@@ -22,6 +22,40 @@ function normalizeDdos(rawDdos) {
   return Object.keys(out).length ? out : undefined;
 }
 
+function isNullIsland(point) {
+  return (
+    point &&
+    typeof point.lat === 'number' &&
+    typeof point.lon === 'number' &&
+    Number.isFinite(point.lat) &&
+    Number.isFinite(point.lon) &&
+    Math.abs(point.lat) < 0.01 &&
+    Math.abs(point.lon) < 0.01
+  );
+}
+
+function sanitizeEndpoints(from, to) {
+  const hasTo =
+    to &&
+    typeof to.lat === 'number' &&
+    typeof to.lon === 'number' &&
+    Number.isFinite(to.lat) &&
+    Number.isFinite(to.lon) &&
+    !isNullIsland(to);
+
+  if (hasTo && (!from || isNullIsland(from))) {
+    return {
+      from: {
+        lat: Math.max(-70, Math.min(70, to.lat + 12)),
+        lon: ((((to.lon - 32) % 360) + 540) % 360) - 180,
+      },
+      to,
+    };
+  }
+
+  return { from, to };
+}
+
 function coordString(point) {
   const lat = point?.lat;
   const lon = point?.lon;
@@ -183,10 +217,12 @@ export function normalizeAttackPayload(raw) {
     raw.from
   );
 
+  const { from, to } = sanitizeEndpoints(raw.from, raw.to);
+
   return {
     id,
-    from: raw.from,
-    to: raw.to,
+    from,
+    to,
     category,
     severity,
     ddos,
@@ -215,6 +251,12 @@ export function normalizeAttackPayload(raw) {
     ownerUserId: typeof raw.ownerUserId === 'string' ? raw.ownerUserId : undefined,
     ownerEmail: typeof raw.ownerEmail === 'string' ? raw.ownerEmail : undefined,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+    lastSeenAt:
+      typeof raw.lastSeenAt === 'number' && Number.isFinite(raw.lastSeenAt)
+        ? raw.lastSeenAt
+        : typeof raw.createdAt === 'number'
+          ? raw.createdAt
+          : Date.now(),
     hitCount:
       typeof raw.hitCount === 'number' && Number.isFinite(raw.hitCount) && raw.hitCount > 0
         ? Math.round(raw.hitCount)

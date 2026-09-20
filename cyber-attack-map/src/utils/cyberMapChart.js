@@ -16,18 +16,24 @@ export function ensureWorldMapRegistered() {
 export function hasValidEndpoints(a) {
   const f = a?.from;
   const t = a?.to;
-  return (
-    f &&
-    t &&
-    typeof f.lat === 'number' &&
-    typeof f.lon === 'number' &&
-    typeof t.lat === 'number' &&
-    typeof t.lon === 'number' &&
-    Number.isFinite(f.lat) &&
-    Number.isFinite(f.lon) &&
-    Number.isFinite(t.lat) &&
-    Number.isFinite(t.lon)
-  );
+  if (
+    !f ||
+    !t ||
+    typeof f.lat !== 'number' ||
+    typeof f.lon !== 'number' ||
+    typeof t.lat !== 'number' ||
+    typeof t.lon !== 'number' ||
+    !Number.isFinite(f.lat) ||
+    !Number.isFinite(f.lon) ||
+    !Number.isFinite(t.lat) ||
+    !Number.isFinite(t.lon)
+  ) {
+    return false;
+  }
+  // Reject Null Island placeholders from local/private IP tests.
+  if (Math.abs(f.lat) < 0.01 && Math.abs(f.lon) < 0.01) return false;
+  if (Math.abs(t.lat) < 0.01 && Math.abs(t.lon) < 0.01) return false;
+  return true;
 }
 
 /** Last N valid incidents — each stays on the map as new ones arrive (until cap). */

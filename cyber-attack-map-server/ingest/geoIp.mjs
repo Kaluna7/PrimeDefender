@@ -274,10 +274,49 @@ export async function enrichPayloadGeo(payload) {
 
   const ipRaw = payload.attackerIp ?? payload.clientIp ?? payload.sourceIp;
   const ip = typeof ipRaw === 'string' ? ipRaw.trim() : '';
-  if (!ip || isPrivateOrReservedIp(ip)) return payload;
+  const to = payload.to;
+  const hasTo =
+    to &&
+    typeof to.lat === 'number' &&
+    typeof to.lon === 'number' &&
+    Number.isFinite(to.lat) &&
+    Number.isFinite(to.lon);
+  const fromIsNullIsland =
+    payload.from &&
+    typeof payload.from.lat === 'number' &&
+    typeof payload.from.lon === 'number' &&
+    Math.abs(payload.from.lat) < 0.01 &&
+    Math.abs(payload.from.lon) < 0.01;
+
+  // Local/private lab traffic often arrives as 127.0.0.1 with from={0,0}.
+  // Place a synthetic source near the protected site so map arcs stay visible.
+  if (!ip || isPrivateOrReservedIp(ip)) {
+    if (hasTo && (!payload.from || fromIsNullIsland)) {
+      const next = { ...payload };
+      next.from = {
+        lat: Math.max(-70, Math.min(70, to.lat + 12)),
+        lon: ((((to.lon - 32) % 360) + 540) % 360) - 180,
+      };
+      if (typeof next.sourceLabel !== 'string' || !next.sourceLabel.trim()) {
+        next.sourceLabel = 'Local / private network';
+      }
+      return next;
+    }
+    return payload;
+  }
 
   const geo = await lookupGeoByIp(ip);
-  if (!geo) return payload;
+  if (!geo) {
+    if (hasTo && (!payload.from || fromIsNullIsland)) {
+      const next = { ...payload };
+      next.from = {
+        lat: Math.max(-70, Math.min(70, to.lat + 12)),
+        lon: ((((to.lon - 32) % 360) + 540) % 360) - 180,
+      };
+      return next;
+    }
+    return payload;
+  }
 
   const next = { ...payload };
   next.from = { lat: geo.lat, lon: geo.lon };

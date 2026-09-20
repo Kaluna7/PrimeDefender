@@ -75,16 +75,17 @@ function pushAttack(prev, payload) {
   });
   const fp = fingerprintForEntry(entry);
   const idx = prev.findIndex((a) => fingerprintForEntry(a) === fp);
+  const now = Date.now();
 
   if (idx !== -1) {
     const old = prev[idx];
     const merged = {
       ...entry,
       id: old.id,
-      from: old.from,
-      to: old.to,
+      from: hasUsablePoint(entry.from) ? entry.from : old.from,
+      to: hasUsablePoint(entry.to) ? entry.to : old.to,
       createdAt: old.createdAt,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
       // Count every realtime hit so Perlindungan (sesi) stays live without reload.
       hitCount: (old.hitCount || 1) + 1,
     };
@@ -93,8 +94,19 @@ function pushAttack(prev, payload) {
     return next;
   }
 
-  const next = [...prev, { ...entry, hitCount: entry.hitCount || 1 }];
+  const next = [...prev, { ...entry, hitCount: entry.hitCount || 1, lastSeenAt: entry.lastSeenAt || now }];
   return next.length > MAX_ATTACKS ? next.slice(-MAX_ATTACKS) : next;
+}
+
+function hasUsablePoint(point) {
+  return (
+    point &&
+    typeof point.lat === 'number' &&
+    typeof point.lon === 'number' &&
+    Number.isFinite(point.lat) &&
+    Number.isFinite(point.lon) &&
+    !(Math.abs(point.lat) < 0.01 && Math.abs(point.lon) < 0.01)
+  );
 }
 
 function useBridgeHandshake(enabled) {
@@ -302,10 +314,17 @@ export function MonitoringPage() {
     [attacks, historyAttacks],
   );
 
-  // Map hanya menampilkan rute pada hari kalender lokal saat ini.
-  // Data lama tetap berada di MongoDB dan tetap tersedia untuk History/Intel.
+  // Map shows attacks active on the current local calendar day
+  // (use lastSeenAt so repeated hits after midnight still draw arcs).
   const mapAttacks = useMemo(
-    () => attacks.filter((attack) => attack.createdAt >= mapDayStart),
+    () =>
+      attacks.filter((attack) => {
+        const seenAt =
+          typeof attack.lastSeenAt === 'number' && attack.lastSeenAt > 0
+            ? attack.lastSeenAt
+            : attack.createdAt;
+        return seenAt >= mapDayStart;
+      }),
     [attacks, mapDayStart],
   );
 
