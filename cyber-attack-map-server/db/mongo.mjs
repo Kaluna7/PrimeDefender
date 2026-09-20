@@ -194,7 +194,8 @@ export async function findRecentByCreatedAt(ms) {
 }
 
 /**
- * Incidents older than the rolling window (by createdAt), newest first.
+ * Incidents within the rolling window (by createdAt), newest first.
+ * Used by History / Attacker tabs after refresh or re-login.
  * @param {{ windowMs: number, skip: number, limit: number }} opts
  */
 export async function findHistoryOlderThanWindow(opts) {
@@ -204,7 +205,7 @@ export async function findHistoryOlderThanWindow(opts) {
   const { windowMs, skip, limit } = opts;
   const cutoff = Date.now() - windowMs;
   const rows = await coll
-    .find({ ...INCIDENT_FILTER, createdAt: { $lt: cutoff } })
+    .find({ ...INCIDENT_FILTER, createdAt: { $gte: cutoff } })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
@@ -231,6 +232,7 @@ export async function findRecentByOwnerUserId(ownerUserId, ms) {
 }
 
 /**
+ * Account history within the rolling window (newest first).
  * @param {{ ownerUserId: string, windowMs: number, skip: number, limit: number }} opts
  */
 export async function findHistoryByOwnerUserId(opts) {
@@ -239,7 +241,7 @@ export async function findHistoryByOwnerUserId(opts) {
   if (!coll) return [];
   const cutoff = Date.now() - opts.windowMs;
   const rows = await coll
-    .find({ ...INCIDENT_FILTER, ownerUserId: opts.ownerUserId, createdAt: { $lt: cutoff } })
+    .find({ ...INCIDENT_FILTER, ownerUserId: opts.ownerUserId, createdAt: { $gte: cutoff } })
     .sort({ createdAt: -1 })
     .skip(opts.skip)
     .limit(opts.limit)

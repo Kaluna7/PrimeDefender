@@ -258,8 +258,8 @@ export function MonitoringPage() {
       let incidents = [];
       if (auth.ok && auth.user?.id) {
         ({ ok, incidents } = await fetchMyHistoryIncidents(SOCKET_URL, {
-          windowHours: 24,
-          limit: 100,
+          windowHours: 168,
+          limit: 500,
           skip: 0,
         }));
       } else {
@@ -270,8 +270,8 @@ export function MonitoringPage() {
           return;
         }
         ({ ok, incidents } = await fetchHistoryIncidents(SOCKET_URL, secret, {
-          windowHours: 24,
-          limit: 100,
+          windowHours: 168,
+          limit: 500,
           skip: 0,
         }));
       }
@@ -287,7 +287,13 @@ export function MonitoringPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== MONITORING_TAB.HISTORY && activeTab !== MONITORING_TAB.INTEL) return;
+    if (
+      activeTab !== MONITORING_TAB.HISTORY &&
+      activeTab !== MONITORING_TAB.INTEL &&
+      activeTab !== MONITORING_TAB.ATTACKER
+    ) {
+      return;
+    }
     loadHistory();
   }, [activeTab, loadHistory]);
 
@@ -395,7 +401,7 @@ export function MonitoringPage() {
 
         {activeTab === MONITORING_TAB.HISTORY && (
           <HistoryTabView
-            attacks={historyAttacks}
+            attacks={intelIncidents}
             error={historyFetchError ? t('monitoring.historyError') : null}
             selectedId={selectedAttackId}
             onSelectAttack={selectAttackPreview}
@@ -404,7 +410,7 @@ export function MonitoringPage() {
         )}
 
         {activeTab === MONITORING_TAB.ATTACKER && (
-          <AttackerTabView attacks={attacks} onViewDetails={openIncidentModal} />
+          <AttackerTabView attacks={intelIncidents} onViewDetails={openIncidentModal} />
         )}
 
         {activeTab === MONITORING_TAB.INTEL && (
